@@ -1,6 +1,6 @@
 /* AEON specific micro driver 1.4
  *
- * Variation of the stock SmartThings "Dimmer-Switch" and twack's improved dimmer
+ * 
  *	--auto re-configure after setting preferences
  *	--alarm indicator capability (using AEON hardware blink function)
  *	
@@ -8,8 +8,8 @@
  * Includes:
  *	preferences tile for setting:
  * 		reporting functions (parameter 80)	[ 0:off, 1:hail, 2:report ] set to "Report" for fastest physical updates from the device
- *		control switch type (parameter 120)	[ 0:momentary, 1:toggle, 2:three way] (2 isn't tested, not sure how its suppposed to work)
- *		preconfigured blinker modes			[Blink, Flasher, Strobe]
+ *		control switch type (parameter 120)	[ 0:momentary, 1:toggle, 2:three way] (2 isn't tested, not sure how its supposed to work)
+ *		pre-configured blinker modes			[Blink, Flasher, Strobe]
  *		
  * Mike Maxwell
  * madmax98087@yahoo.com
@@ -17,7 +17,7 @@
  *
 	change log
     1.1 2014-12-08
-    	-added light state restore to prevent alarm smartapps from turning off the light if it was on when the stobe request was made.
+    	-added light state restore to prevent alarm smartapps from turning off the light if it was on when the strobe request was made.
     1.2 2014-12-10
     	-added flash command with parameters for smartapp integration
     1.3 2014-12-13
