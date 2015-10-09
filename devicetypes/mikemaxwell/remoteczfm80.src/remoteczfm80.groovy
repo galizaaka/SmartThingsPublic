@@ -76,7 +76,7 @@ def parse(String description) {
 	}
     //if the result was an on event, then send an off if this is a gd controller
     if (settings.isGD && result.value == "on" && result.isStateChange) {
-    	//log.debug "turn the shit off"
+    	//log.debug "turn the thing off"
         result = [result,response(zwave.basicV1.basicSet(value: 0x00).format())]
     } 
     return result
@@ -132,27 +132,15 @@ def zwaveEvent(physicalgraph.zwave.Command cmd) {
 }
 
 def on() {
-
-	//if (settings.isGD) {
-    //	log.info "on isGD: true"
-    	//delayBetween([zwave.basicV1.basicSet(value: 0xFF).format(),zwave.basicV1.basicSet(value: 0x00).format(),zwave.switchBinaryV1.switchBinaryGet().format()],1000)	
-    //    return delayBetween([zwave.basicV1.basicSet(value: 0xFF).format(),zwave.basicV1.basicSet(value: 0x00).format()],1000)
-    //} else {
     	log.info "on via app"
-		//delayBetween([zwave.basicV1.basicSet(value: 0xFF).format(),zwave.switchBinaryV1.switchBinaryGet().format()])
+        sendEvent( name: "switch", value: "on")
         return zwave.basicV1.basicSet(value: 0xFF).format()
-    //}
 }
 
 def off() {
-	//delayBetween([zwave.basicV1.basicSet(value: 0x00).format(),	zwave.switchBinaryV1.switchBinaryGet().format()])
-    //if (!settings.isGD) {
     	log.info "off via app"
+        sendEvent( name: "switch", value: "off")
     	return zwave.basicV1.basicSet(value: 0x00).format()
-    //} else {
-    //	log.info "off isGD: true"
-    //	log.info "switch send event here?"
-    //}
 }
 
 def poll() {
