@@ -19,6 +19,7 @@ definition(
     author: "Mike Maxwell",
     description: "Triggers Simulated Motion Sensor using multiple physical motion sensors.",
     category: "My Apps",
+    parent: "MikeMaxwell:Zone Motion Manager",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
     iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
@@ -28,21 +29,43 @@ preferences {
 	section("Zone configuration") {
 		input(
             	name		: "motionSensors"
-                ,title		: "Motion sensors:"
+                ,title		: "Motion Sensors:"
                 ,multiple	: true
                 ,required	: true
                 ,type		: "capability.motionSensor"
             )
             input(
             	name		: "simMotion"
-                ,title		: "Virtual Motion Sensor for this zone:"
+                ,title		: "Virtual Motion Sensor:"
                 ,multiple	: false
                 ,required	: true
                 ,type		: "device.simulatedMotionSensor"
             )
             input(
+            	name		: "zoneEnableContacts"
+                ,title		: "Contact Sensors that can enable this zone:"
+                ,multiple	: true
+                ,required	: false
+                ,type		: "capability.contactSensor"
+            )            
+            input(
+            	name		: "zoneEnableMotions"
+                ,title		: "Motions Sensors that can enable this zone:"
+                ,multiple	: true
+                ,required	: false
+                ,type		: "capability.motionSensor"
+            )     
+           input(
+            	name		: "zoneEnableTimeout"
+                ,title		: "Timeout for zone enable:"
+                ,multiple	: false
+                ,required	: false
+                ,type		: "enum"
+                ,options	: [10:"*10 seconds",15:"15 seconds",30:"30 seconds",45:"45 seconds",60:"1 minute",120:"2 minutes",180:"3 minutes"]
+            )            
+            input(
             	name		: "activateOnAll"
-                ,title		: "Activate Zone when:"
+                ,title		: "Activate Zone on:"
                 ,multiple	: false
                 ,required	: true
                 ,type		: "enum"
@@ -50,19 +73,21 @@ preferences {
             )
             input(
             	name		: "activationWindow"
-                ,title		: "Activation window time, seconds. (used for All Sensors Option):"
+                ,title		: "Activation window time (used for All Sensors Option):"
                 ,multiple	: false
-                ,required	: true
+                ,required	: false
                 ,type		: "enum"
-                ,options	: ["1","2","3","4","5","6","7","8","9","10"]
+                ,options	: [1:"1 second",2:"*2 seconds",3:"3 seconds",4:"4 seconds",5:"5 seconds",6:"6 seconds",7:"7 seconds",8:"8 seconds",9:"9 seconds",10:"10 seconds"]
             )
-            input(
+			/*
+			input(
             	name		: "lights"
                 ,title		: "Select switch for testing..."
                 ,multiple	: false
                 ,required	: false
                 ,type		: "capability.switch"
             )
+            */
 	}
 }
 
@@ -83,73 +108,88 @@ def initialize() {
     //log.info "activeDevices:${state.activeDevices}"
 }
 def motionHandler(evt) {
-	def state
-    def states
-    def motionOK = true
     def activateOnAll = settings.activateOnAll == "1"
-    def window = settings.activationWindow.toInteger()
-    def crnt = new Date()
-    def wStart = new Date(crnt.time - (window * 2000))
-    def stateMap = [:]
-    def wSec
-	//log.debug "activteOnAll: ${activateOnAll}"
+    def evtTime = evt.date.getTime()
 	if (evt.value == "active") {
     	//log.debug "fired: ${evt.displayName}"
+    	//log.debug "activteOnAll: ${activateOnAll}"    
         if (activateOnAll) {
-    		motionSensors.each{ m ->
-        		stateMap << [(m.displayName):settings.activationWindow.toInteger() + 1]
-            	states = m.statesSince("motion", wStart)
-            	states.each{s ->
-             		if (s.value == "active"){
-                		wSec = (evt.date.getTime() - s.date.getTime()) / 1000
-                		//log.info "${m.displayName} s:${wSec}"
-                    	if (wSec < stateMap.(m.displayName)) {
-                    		stateMap.(m.displayName) = wSec
-                    	}
-                	}
-            	}
-        	}
-        	motionOK = stateMap.every{ s -> s.value < window }    
+    		if (allActive(evtTime)) {
+            	activateZone()
+            }
+            /*
+    		motionOK = motionSensors.currentState("motion").every{s-> s.value == "active" && (evtTime - s.date.getTime()) < window}
 			if (motionOK) {
 				activateZone()
 			} else {
         		//log.warn "some sensors in motion"
             	stateMap.each{ s -> 
+                	//show the sensors that did fire...
             		if (s.value < window) {
                 		log.warn "${s.key} in motion..."
                 	}
             	}
         	}
+            */
+        // activeOnAll == false
         } else {
-    		activateZone()        
+            if (isZoneEnabled(evtTime)){
+            	activateZone()
+            }
         }
+    //evt.value == something else
 	} else {
+    	//log.debug "evt.value:${evt.value}"
     	if (activateOnAll || allInactive()) {
 			inactivateZone()
 		}
 	}
 }
+def isZoneEnabled(evtTime){
+	//log.debug "isZoneEnabled - time:${evtTime}"
+	def state = true
+    def timeout = (settings.zoneEnableTimeout ?: 10).toInteger() * 1000
+	//zoneEnableTimeout
+	//zoneEnableContacts
+    //zoneEnableMotions
+    if (zoneEnableMotions){
+    	state =	zoneEnableMotions.currentState("motion").any{s-> s.value == "active" && (evtTime - s.date.getTime()) < timeout}
+        log.info "isZoneEnabled - zoneEnableMotions:${state}"
+    } else
+    if (zoneEnableContacts){
+		state = zoneEnableContacts.currentState("contact").any{s-> s.value == "open" && (evtTime - s.date.getTime()) < timeout}  
+        log.info "isZoneEnabled - zoneEnableContacts:${state}"
+    }
+    log.info "isZoneEnabled - final:${state}"
+    return state
+}
+def allActive(evtTime){
+	def state
+    def window = (settings.activationWindow ?: 2).toInteger() * 1000
+	state = motionSensors.currentState("motion").every{s-> s.value == "active" && (evtTime - s.date.getTime()) < window}
+	log.info "allActive:${state}"
+	return state
+}
 def inactivateZone(){
-	if (simMotion.currentValue("motion") == "active") {
+	if (simMotion.currentValue("motion") != "inactive") {
 		log.info "Zone: ${simMotion.displayName} is inactive."
-		if (lights) lights.off()
    		simMotion.inactive()
     }
 }
 def activateZone(){
-	if (simMotion.currentValue("motion") == "inactive") {
+	if (simMotion.currentValue("motion") != "active") {
 		log.info "Zone: ${simMotion.displayName} is active."
-   		if (lights) lights.on()
    		simMotion.active()
     }
 }
-
 def allInactive () {
-	def state = true	 
-    if (motionSensors*.currentValue("motion").contains("active")){
-    	state = false 
-    }
-    //log.debug "allInactive: ${state}"
+	def state	 
+    state = motionSensors.currentValue("motion").contains("active")
+    
+    //if (motionSensors.currentValue("motion").contains("active")){
+    //	state = false 
+    //}
+    log.debug "allInactive: ${state}"
 	return state
 }
 
