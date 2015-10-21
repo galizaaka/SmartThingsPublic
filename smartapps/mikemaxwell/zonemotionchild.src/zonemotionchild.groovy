@@ -17,7 +17,7 @@ definition(
     name: "zoneMotionChild",
     namespace: "MikeMaxwell",
     author: "Mike Maxwell",
-    description: "Triggers Simulated Motion Sensor using multiple physical motion sensors, optional inputs to enable zone.",
+    description: "child application for 'Zone Motion Manager', do not install directly.",
     category: "My Apps",
     parent: "MikeMaxwell:Zone Motion Manager",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
