@@ -25,10 +25,12 @@ metadata {
 		status "inactive": "motion:inactive"
 	}
 
-	tiles {
-		standardTile("motion", "device.motion", width: 2, height: 2) {
-			state("inactive", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff", action: "active")
-			state("active", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0", action: "inactive")
+	tiles(scale: 2) {
+		multiAttributeTile(name:"motion", type: "generic", width: 6, height: 4){
+			tileAttribute ("device.motion", key: "PRIMARY_CONTROL") {
+				attributeState "active", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0"
+				attributeState "inactive", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
+			}
 		}
 		main "motion"
 		details "motion"
@@ -38,17 +40,18 @@ metadata {
 def parse(String description) {
 	//log.debug "parse returned:${description}"
     if (description != "updated"){
+    	log.info "parse returned:${description}"
 		def pair = description.split(":")
 		createEvent(name: pair[0].trim(), value: pair[1].trim())
       }
 }
 
 def active() {
-	log.trace "motion active"
+	//log.trace "motion active"
 	sendEvent(name: "motion", value: "active")
 }
 
 def inactive() {
-	log.trace "motion inactive"
+	//log.trace "motion inactive"
     sendEvent(name: "motion", value: "inactive")
 }
