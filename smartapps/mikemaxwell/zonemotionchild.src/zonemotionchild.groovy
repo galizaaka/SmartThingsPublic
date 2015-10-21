@@ -39,6 +39,7 @@ def updated() {
 	initialize()
 }
 def initialize() {
+	state.nextRunTime = 0
 	state.zoneTriggerActive = false
 	subscribe(motionSensors, "motion.inactive", inactiveHandler)
     subscribe(motionSensors, "motion.active", activeHandler)
@@ -55,9 +56,15 @@ def initialize() {
         simMotion.inactive()
     }
 }
-def activityTimeoutHandler(){
+def activityTimeoutHandler(evtTime,device){
 	def timeout = settings.zoneTimeout.toInteger()
-    log.debug "Zone is active, check again in ${timeout} seconds..."
+    def text = ","
+    if (state.nextRunTime > 0){
+    	def timeoutRemaining = (state.nextRunTime - evtTime) / 1000
+        text = ", (${timeoutRemaining.toInteger()} seconds remaining)," 
+    }
+    log.debug "Zone is active via [${device}]${text} check again in ${timeout} seconds..."
+    state.nextRunTime = evtTime + (timeout * 1000) 
     runIn(timeout,zoneOff)
 }
 
@@ -95,27 +102,32 @@ def anyTriggersActive(evtTime){
 }
 def activeHandler(evt){
 	def evtTime = evt.date.getTime()
-  	switch (settings.zoneType) {
-    	//False motion reduction
-		case "0":
-        	if (allMotionsActive(evtTime)) zoneOn() 
-			break
-        //Motion Aggregation
-		case "1":
-        	zoneOn()
-        	activityTimeoutHandler()
-	        break
-        //Triggered Activation
-		case "2":
-        	if (!state.zoneTriggerActive && anyTriggersActive(evtTime)){
-            	zoneOn()
-                activityTimeoutHandler()
-                state.zoneTriggerActive = true
-            } else if (state.zoneTriggerActive){
-            	activityTimeoutHandler()
-            }
-	        break
- 	}	
+    def device = evt.displayName
+    if (modeIsOK()) {
+  		switch (settings.zoneType) {
+    		//False motion reduction
+			case "0":
+        		if (allMotionsActive(evtTime)) zoneOn() 
+				break
+        	//Motion Aggregation
+			case "1":
+        		zoneOn()
+        		activityTimeoutHandler(evtTime,device)
+	        	break
+        	//Triggered Activation
+			case "2":
+        		if (!state.zoneTriggerActive && anyTriggersActive(evtTime)){
+            		zoneOn()
+                	activityTimeoutHandler(evtTime,device)
+                	state.zoneTriggerActive = true
+            	} else if (state.zoneTriggerActive){
+            		activityTimeoutHandler(evtTime,device)
+            	}
+	        	break
+ 		}
+    } else {
+    	log.debug "modeOK: False"
+    }
 }
 def inactiveHandler(evt){
 	if (settings.zoneType == "0" && allInactive()){
@@ -130,6 +142,7 @@ def zoneOn(){
    	}
 }
 def zoneOff(){
+	state.nextRunTime = 0
     def simMotion = getChildDevice(app.id)
 	if (simMotion.currentValue("motion") != "inactive") {
 		log.info "Zone: ${simMotion.displayName} is inactive."
@@ -140,10 +153,13 @@ def zoneOff(){
 def allInactive () {
 	//log.debug "allInactive:${motionSensors.currentValue("motion")}"
 	def state = motionSensors.currentState("motion").every{ s -> s.value == "inactive"}
-    log.debug "allInactive: ${state}"
+    //log.debug "allInactive: ${state}"
 	return state
 }
-
+def modeIsOK() {
+	def result = !modes || modes.contains(location.mode)
+	return result
+}
 /* page methods	* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 def main(){
 	def installed = app.installationState == "COMPLETE"
@@ -235,15 +251,13 @@ def main(){
                         ,multiple	: true
                         ,required	: false
                     )
-            } //end section Zone settings
+            } //end section optional settings
 	}
 }
 def triggers(){
 	return dynamicPage(
     	name		: "triggers"
         ,title		: "Trigger devices"
-        //,install	: installed
-        //,uninstall	: installed
         ){
 		     section(){
 					input(
