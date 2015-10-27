@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
+ 
 definition(
     name: "zoneMotionChild",
     namespace: "MikeMaxwell",
@@ -23,7 +24,6 @@ definition(
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
     iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
-
 
 preferences {
 	page(name: "main")
@@ -43,18 +43,17 @@ def initialize() {
 	state.zoneTriggerActive = false
 	subscribe(motionSensors, "motion.inactive", inactiveHandler)
     subscribe(motionSensors, "motion.active", activeHandler)
-    def simMotion = getChildDevice(app.id)
-    def zName = "mZone-${settings.zoneName}"
-    def hub = location.hubs[0]
-    app.updateLabel("${settings.zoneName} Zone Controller")    
-	if (!simMotion) {
-    	log.info "create the virtual motion sensor"
-        simMotion = addChildDevice("MikeMaxwell", "simulatedMotionSensor", app.id, hub.id, [name: zName, label: zName, completedSetup: true])
-        simMotion.inactive()
+    app.updateLabel("${settings.zoneName} Zone Controller") 
+    
+    if (!simMotion) {
+    	//log.info "create the virtual motion sensor"
+        //simMotion = addChildDevice("MikeMaxwell", "simulatedMotionSensor", app.id, hub.id, [name: zName, label: zName, completedSetup: true])
+        //simMotion.inactive()
     } else {
     	log.info "virtual motion sensor exists"
         simMotion.inactive()
     }
+    //runIn(60,makeChildDevice)
 }
 def activityTimeoutHandler(evtTime,device){
 	def timeout = settings.zoneTimeout.toInteger()
@@ -83,8 +82,15 @@ def anyTriggersActive(evtTime){
 	def enable = false
     def window = settings.activationWindowTA.toInteger()
     def evtStart = new Date(evtTime - window)
-   
+	//log.trace "tm:${triggerMotions.inspect()}"
+	//log.trace "tc:${triggerContacts.inspect()}"
     if (triggerMotions){
+    	//def states = triggerMotions.statesSince("motion", evtStart)
+        //triggerMotions.each{s ->
+        //	def st = s.statesSince("motion", evtStart)
+        //	log.trace "tm: ${s.displayName} ${st.value} ${st.date}"
+        //}
+    	//log.trace "tm:${triggertMotions}"
     	enable = triggerMotions.any{ s -> s.statesSince("motion", evtStart).size > 0}
         //log.debug "triggerMotions:${enable}"
     }
@@ -101,7 +107,11 @@ def anyTriggersActive(evtTime){
     return enable
 }
 def activeHandler(evt){
+	//log.trace "now:${new Date()}"
+    log.trace "active handler fired via [${evt.displayName}] evt.date:${evt.date}"
 	def evtTime = evt.date.getTime()
+    //log.trace "active handler evt.date+3:${new Date(evtTime)}"
+    
     def device = evt.displayName
     if (modeIsOK()) {
   		switch (settings.zoneType) {
@@ -135,7 +145,7 @@ def inactiveHandler(evt){
     }
 }
 def zoneOn(){
-    def simMotion = getChildDevice(app.id)
+    //def simMotion = getChildDevice(app.id)
 	if (simMotion.currentValue("motion") != "active") {
 		log.info "Zone: ${simMotion.displayName} is active."
 		simMotion.active()
@@ -143,7 +153,7 @@ def zoneOn(){
 }
 def zoneOff(){
 	state.nextRunTime = 0
-    def simMotion = getChildDevice(app.id)
+    //def simMotion = getChildDevice(app.id)
 	if (simMotion.currentValue("motion") != "inactive") {
 		log.info "Zone: ${simMotion.displayName} is inactive."
         state.zoneTriggerActive = false
@@ -160,6 +170,20 @@ def modeIsOK() {
 	def result = !modes || modes.contains(location.mode)
 	return result
 }
+def makeChildDevice(){
+    def simMotion = getChildDevice(app.id)
+    def zName = "mZone-${settings.zoneName}"
+    def hub = location.hubs[0]
+   
+    if (!simMotion) {
+    	log.info "creating the virtual motion sensor."
+        simMotion = addChildDevice("MikeMaxwell", "simulatedMotionSensor", app.id, hub.id, [name: zName, label: zName, completedSetup: false])
+        simMotion.inactive()
+    } else {
+    	log.info "virtual motion sensor exists."
+        simMotion.inactive()
+    }
+}
 /* page methods	* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 def main(){
 	def installed = app.installationState == "COMPLETE"
@@ -172,6 +196,13 @@ def main(){
         ,uninstall	: installed
         ){
 		     section(){
+                   input(
+                        name		: "simMotion"
+                        ,title		: "Virtual Motion Sensor for this Zone:"
+                        ,multiple	: false
+                        ,required	: true
+                        ,type		: "capability.motionSensor"
+                    )
                     input(
                         name		: "zoneName"
                         ,type		: "text"
