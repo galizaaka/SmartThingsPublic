@@ -321,6 +321,14 @@ def manageChildDevices(){
 }
 
 def cmdHandler(evt){
+	/*
+    for event data, change over to a map:
+    @device
+    sendEvent(name: 'someEvent', value: 'someValue', data: [isManual: true, someOtherKey: "someOtherVal"])
+	@app
+	log.debug "isManual: ${evt.data.isManual}"
+
+    */
     def sceneID = state.vtMaps[evt.deviceId]
     def nid = app.id + "/" + sceneID
     def cmd = evt.data.split("~")[1]
@@ -437,8 +445,13 @@ def setScene(sceneID,turnOn,restore){
             				if (logInfo) log.info "scene on request for ${sceneID} ${stDevice.displayName}"
 							//this device goes on
                 			if (sceneMap.switch == "on"){
-                            	//RGBW
-                                if (sceneMap.whiteLevel) {
+                            	//color temp bulbs
+                                if (sceneMap.colorTemperature) {
+                                    stDevice.on()
+                                    stDevice.setLevel(sceneMap.level)
+									stDevice.setColorTemperature(sceneMap.colorTemperature)	                                
+                                //RGBW
+                                } else if (sceneMap.whiteLevel) {
                                 	//log.debug "RGBW detected, map:${sceneMap}"
                                     stDevice.on()
                                     def colorMap = [hex:sceneMap.color,level:sceneMap.level]
@@ -501,7 +514,7 @@ def setScene(sceneID,turnOn,restore){
 }
 
 def sceneSnap(sceneID,isNew) {
-	def attributesToSave = ['hue', 'saturation', 'color', 'switch', 'level', "whiteLevel"]
+	def attributesToSave = ['hue', 'saturation', 'color', 'switch', 'level', "whiteLevel","colorTemperature"]
     //def attributesToSave = ['color', 'switch', 'level']
 	def allAttributes = []
     def savedMap
