@@ -1,5 +1,5 @@
 /**
- *  superState	1.1
+ *  superState	1.2
  *
  *  Copyright 2015 Mike Maxwell
  *  
