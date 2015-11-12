@@ -48,6 +48,7 @@ def on() {
 def off() {
 	log.info "off..."
 	sendEvent(name: "switch", value: "off")
+    sendEvent(name: "momentary", value: "pushed", isStateChange: true)
 }
 def setLevel(delayMinutes){
 	def delay = delayMinutes * 60
@@ -56,6 +57,5 @@ def setLevel(delayMinutes){
 def runDelay(seconds){
 	log.info "running - delay:${seconds}"
 	sendEvent(name: "switch", value: "on")
-    sendEvent(name: "momentary", value: "pushed", isStateChange: true)
 	runIn(seconds,off)
 }
