@@ -6,6 +6,7 @@ metadata {
 		capability "Switch"
 		capability "Momentary"
         capability "Switch Level"
+        capability "Button"
 	}
 
 	// simulator metadata
@@ -48,7 +49,7 @@ def on() {
 def off() {
 	log.info "off..."
 	sendEvent(name: "switch", value: "off")
-    sendEvent(name: "momentary", value: "pushed", isStateChange: true)
+    sendEvent(name: "button", value: "pushed",data:[buttonNumber: '1'], isStateChange: true)
 }
 def setLevel(delayMinutes){
 	def delay = delayMinutes * 60
