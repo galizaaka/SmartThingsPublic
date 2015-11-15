@@ -45,7 +45,7 @@ def selectRule() {
             //input "howMany", "number", title: "How many conditions?", required: true, range: "1..*" //temp fix for Android bug
             def condLabel = conditionLabel()
             //maxwell removed annoying trailing lf
-            condLabel = condLabel[0..-2]
+            if (condLabel)  condLabel = condLabel[0..-2]
 			href "selectConditions", title: "Define Conditions", description: condLabel ? (condLabel) : "Tap to set", required: true, state: condLabel ? "complete" : null
 			//maxwell remove annoying trailing lf
             //href "defineRule", title: "Define the Rule", description: state.str ? (state.str + "\n") : "Tap to set", state: state.str ? "complete" : null
@@ -79,7 +79,7 @@ def selectConditions() {
 							if(xCapab in ["Temperature", "Humidity", "Illuminance"]) getRelational(thisDev)
 						}
 						getState(xCapab, i)
-					}
+					}//end if myCapab
 				}
 			}
 		}
@@ -143,9 +143,15 @@ def selectMsgFalse() {
 }
 
 def selectActionsTrue() {
+	log.debug "do we ever get here?"
 	dynamicPage(name: "selectActionsTrue", title: "Select Actions for True", uninstall: false) {
 		state.actsTrue = ""
 		section("") {
+        	//maxwell custom commands
+            input "onCustomTrue", "capability.switch", title: "Custom command devices", multiple: true, required: false, submitOnChange: true
+            setActTrue(onCustomTrue, "Custom: $onCustomTrue")
+            if (onCustomTrue) input "custATrue", "text", title: "Command to run", required: true, submitOnChange: true 
+            
 			input "onSwitchTrue", "capability.switch", title: "Turn on these switches", multiple: true, required: false, submitOnChange: true
 			setActTrue(onSwitchTrue, "On: $onSwitchTrue")
 			input "offSwitchTrue", "capability.switch", title: "Turn off these switches", multiple: true, required: false, submitOnChange: true
