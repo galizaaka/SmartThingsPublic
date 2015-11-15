@@ -45,7 +45,7 @@ def selectRule() {
             //input "howMany", "number", title: "How many conditions?", required: true, range: "1..*" //temp fix for Android bug
             def condLabel = conditionLabel()
             //maxwell removed annoying trailing lf
-            if (condLabel)  condLabel = condLabel[0..-2]
+            if (condLabel) condLabel = condLabel[0..-2]
 			href "selectConditions", title: "Define Conditions", description: condLabel ? (condLabel) : "Tap to set", required: true, state: condLabel ? "complete" : null
 			//maxwell remove annoying trailing lf
             //href "defineRule", title: "Define the Rule", description: state.str ? (state.str + "\n") : "Tap to set", state: state.str ? "complete" : null
@@ -147,11 +147,6 @@ def selectActionsTrue() {
 	dynamicPage(name: "selectActionsTrue", title: "Select Actions for True", uninstall: false) {
 		state.actsTrue = ""
 		section("") {
-        	//maxwell custom commands
-            input "onCustomTrue", "capability.switch", title: "Custom command devices", multiple: true, required: false, submitOnChange: true
-            setActTrue(onCustomTrue, "Custom: $onCustomTrue")
-            if (onCustomTrue) input "custATrue", "text", title: "Command to run", required: true, submitOnChange: true 
-            
 			input "onSwitchTrue", "capability.switch", title: "Turn on these switches", multiple: true, required: false, submitOnChange: true
 			setActTrue(onSwitchTrue, "On: $onSwitchTrue")
 			input "offSwitchTrue", "capability.switch", title: "Turn off these switches", multiple: true, required: false, submitOnChange: true
@@ -173,6 +168,16 @@ def selectActionsTrue() {
 			setActTrue(lockTrue, "Lock: $lockTrue")
 			input "unlockTrue", "capability.lock", title: "Unlock these locks", multiple: true, required: false, submitOnChange: true
 			setActTrue(unlockTrue, "Unlock: $unlockTrue")
+           	//maxwell custom commands
+            /*
+            input "onCustomTrue", "capability.actuator", title: "Custom command devices", multiple: true, required: false, submitOnChange: true
+            if (onCustomTrue){
+            	input "custATrue", "text", title: "Command to invoke", required: true, submitOnChange: true 
+                input "custBTrue", "text", title: "Parameter to include", required: false, submitOnChange: true 
+			}
+            if (custBTrue) setActTrue(onCustomTrue, "Custom: ${onCustomTrue}:${custATrue}:${custBTrue}")
+            else if (custATrue) setActTrue(onCustomTrue, "Custom: ${onCustomTrue}:${custATrue}")
+            */
 			input "modeTrue", "mode", title: "Set the mode", multiple: false, required: false, submitOnChange: true
 			if(modeTrue) setActTrue(true, "Mode: $modeTrue")
 			def phrases = location.helloHome?.getPhrases()*.label
