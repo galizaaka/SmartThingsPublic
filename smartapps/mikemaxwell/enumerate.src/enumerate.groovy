@@ -1,5 +1,5 @@
 /**
- *  enumerate
+ *  enumerate Beta 1  device command exploration tool 
  *
  *  Copyright 2015 Mike Maxwell
  *
@@ -17,7 +17,7 @@ definition(
 	name: "enumerate",
 	namespace: "MikeMaxwell",
 	author: "Mike Maxwell",
-	description: "Yea...",
+	description: "Device command explorer",
 	category: "My Apps",
 	iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
 	iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
@@ -57,8 +57,8 @@ def customCommandsPAGE() {
 					,options		: getCommands(true)
 					,submitOnChange	: true
 				)
-				if (isValidCommand([testCmd])){
-					def result = execCommand() 
+				if (isValidCommand([settings.testCmd])){
+					def result = execCommand(settings.testCmd) 
 					paragraph "${result}"
 				}
 			} //end devices
@@ -402,10 +402,10 @@ def execTestCommand(){
 	return result
 }
 
-def execCommand(){
-	def result = ""
+def execCommand(cmdID){
+    def result = ""
 	def pList = []
-	def cmdMap = state.customCommands["${testCmd}"] 
+	def cmdMap = state.customCommands["${cmdID}"] 
 	if (testCmd && cmdMap) {
 		cmdMap.params.each{ p ->
 			if (p.value.type == "string"){
