@@ -6,7 +6,7 @@
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *	  http://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
@@ -14,82 +14,188 @@
  *
  */
 definition(
-    name: "enumerate",
-    namespace: "MikeMaxwell",
-    author: "Mike Maxwell",
-    description: "Yea...",
-    category: "My Apps",
-    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
-    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
+	name: "enumerate",
+	namespace: "MikeMaxwell",
+	author: "Mike Maxwell",
+	description: "Yea...",
+	category: "My Apps",
+	iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
+	iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
+	iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
 
 
 preferences {
-	page(name: "main")
-	page(name: "customCommand")
-    page(name: "customParams")
+	page(name: "customCommandsPAGE")
+	page(name: "addCustomCommandPAGE")
+	page(name: "deleteCustomCommandPAGE")
+	page(name: "customCommandPAGE")
+	page(name: "customParamsPAGE")
+	page(name: "generalApprovalPAGE")
 }
-def main() {
-	def cmdLabel = getCmdLabel()
-    def complete = "" 
-    def title = "Create custom command"
-    if (cmdLabel){
-    	complete = "complete"
-        title = "Custom command"
-    }
-	dynamicPage(name: "main", title: "main", uninstall: true, install: true) {
+/***** page methods	*****/
+def customCommandsPAGE() {
+	if (!state.lastCmdIDX) state.lastCmdIDX = 0
+	if (!state.customCommands) state.customCommands = [0:[text:"showMethods()",cmd:"showMethods",params:[:]]]
+
+	dynamicPage(name: "customCommandsPAGE", title: "Custom Commands", uninstall: true, install: true) {
 	section() {
-        	input(
-            	name			: "devices"
-                ,title			: "devices"
-                ,multiple		: true
-                ,type			: "capability.actuator"
-            )
-            href( "customCommand"
-            	,title		: title
-            	,description: cmdLabel ?: "Tap to set..."
-            	,state		: complete
-            )
-        }
+			input(
+				name			: "devices"
+				,title			: "Test Devices"
+				,multiple		: true
+				,required		: false
+				,type			: "capability.actuator"
+				,submitOnChange	: true
+			)
+			if (settings.devices){
+				input(
+					name			: "testCmd"
+					,title			: "Select command to test"
+					,multiple		: false
+					,required		: false
+					,type			: "enum"
+					,options		: getCommands(true)
+					,submitOnChange	: true
+				)
+				if (isValidCommand([testCmd])){
+					def result = execCommand() 
+					paragraph "${result}"
+				}
+			} //end devices
+			href( "addCustomCommandPAGE"
+				,title		: ""
+				,description: "Add custom command..."
+				,state		: null
+			)
+			if (getCommands(false)){
+				href( "deleteCustomCommandPAGE"
+					,title		: ""
+					,description: "Delete custom commands..."
+					,state		: null
+				)
+			}
+		}
 	}
 }
-def customCommand(){
-	dynamicPage(name: "customCommand", title: "Create custom command"){
-    	section() {
-    		input(
-           		name			: "cCmdOn"
-            	,title			: "Command"
-            	,multiple		: false
-            	,required		: true
-            	,type			: "text"
-                ,submitOnChange	: true
-         	)
-            href( "customParams"
-            	,title: "Parameters"
-            	,description: parameterLabel()
-            	//,params		: [ct:pCount.toString()]
-            	,state: null
-            )
-        }
-    }
+def deleteCustomCommandPAGE(){
+	dynamicPage(name: "deleteCustomCommandPAGE", title: "Delete Custom Commands", uninstall: false, install: false) {
+		section(){
+			input(
+				name			: "deleteCmds"
+				,title			: "Select commands to delete"
+				,multiple		: true
+				,required		: false
+				,type			: "enum"
+				,options		: getCommands(false)
+				,submitOnChange	: true
+			)
+			log.debug "deleteCmds:${deleteCmds}"
+			if (isValidCommand(deleteCmds)){
+				href( "generalApprovalPAGE"
+					,title			: ""
+					,description	: "Delete Command(s) Now"
+					,state			: null
+					,params			: [method:"deleteCommands",title:"Delete Command",nextPage:"customCommandsPAGE"]
+					,submitOnChange	: true
+				)
+			}
+		}
+	}
 }
-def customParams(p) {
-	log.debug "p:${p}"
-    def ct = settings.findAll{it.key.startsWith("cpType_")}
-    state.howManyP = ct.size() + 1
-    def howMany = state.howManyP
-    log.debug "customParams - ct:${ct} howMany:${howMany}"
-    
-	dynamicPage(name: "customParams", title: "Select parameters", uninstall: false) {
+
+def addCustomCommandPAGE(){
+	def cmdLabel = getCmdLabel()
+	def complete = "" 
+	def test = false
+	def title = "Create custom command"
+	if (cmdLabel){
+		complete = "complete"
+		test = true
+		title = "Custom command"
+	}
+	dynamicPage(name: "addCustomCommandPAGE", title: "Add Custom Commands", uninstall: false, install: false) {
+		section(){
+   			href( "customCommandPAGE"
+				,title		: title
+				,description: cmdLabel ?: "Tap to set"
+				,state		: complete
+			)
+			if (test){
+			//test devices
+		   		input(
+					name			: "devices"
+					,title			: "Test Devices"
+					,multiple		: true
+					,type			: "capability.actuator"
+					,required		: false
+					,submitOnChange	: true
+				)
+				if (devices){
+					def result
+					result = execTestCommand() 
+					if (!result){
+						paragraph "Command suceeded"
+						href( "generalApprovalPAGE"
+							,title		: ""
+							,description: "Save Command Now"
+							,state		: null
+							,params		: [method:"addCommand",title:"Add Command",nextPage:"customCommandsPAGE"]
+						)
+					} else {
+						paragraph "${result}"
+					}
+				}
+			}
+		}
+	}
+}
+def generalApprovalPAGE(params){
+	def title = params.title
+	def method = params.method
+	def nextPage = params.nextPage
+	def result
+	dynamicPage(name: "generalApprovalPAGE", title: title, nextPage: nextPage){
+		section() {
+			if (method) {
+				result = app."${method}"()
+				paragraph "${result}"
+			}
+		}
+	}
+}
+def customCommandPAGE(){
+	dynamicPage(name: "customCommandPAGE", title: "Create custom command"){
+		section() {
+			input(
+		   		name			: "cCmd"
+				,title			: "Command"
+				,multiple		: false
+				,required		: true
+				,type			: "text"
+				,submitOnChange	: true
+		 	)
+			href( "customParamsPAGE"
+				,title: "Parameters"
+				,description: parameterLabel()
+				,state: null
+			)
+		}
+	}
+}
+def customParamsPAGE(p){
+	def ct = settings.findAll{it.key.startsWith("cpType_")}
+	state.howManyP = ct.size() + 1
+	def howMany = state.howManyP
+	dynamicPage(name: "customParamsPAGE", title: "Select parameters", uninstall: false) {
 		if(howMany) {
 			for (int i = 1; i <= howMany; i++) {
 				def thisParam = "cpType_" + i
-                def myParam = ct.find {it.key == thisParam}
+				def myParam = ct.find {it.key == thisParam}
 				section("Parameter #${i}") {
 					getParamType(thisParam, i != howMany)
 					if(myParam) {
 						def pType = myParam.value
-                        getPvalue(pType, i)
+						getPvalue(pType, i)
 					}
 				}
 			}
@@ -97,13 +203,8 @@ def customParams(p) {
 	}
 }
 
-def getParamType(myParam,isLast) {  
-	log.info "getParamType - myParam:${myParam} isLast:${isLast}"
-	def myOptions = ["string", "number"]
-    /* possible iOS deselect workaround...
-    if (isLast) myOptions = ["string", "number",[null:"Delete"]]
-    else myOptions = ["string", "number"]
-    */
+def getParamType(myParam,isLast){  
+	def myOptions = ["string", "number", "decimal"]
 	def result = input (
 					name			: myParam
 					,type			: "enum"
@@ -115,139 +216,217 @@ def getParamType(myParam,isLast) {
 	return result
 }
 
-def getPvalue(myPtype, n) {
-	//log.info "getPvalue - myPtype:${myPtype} n:${n}"
-    def myVal = "cpVal_" + n
+def getPvalue(myPtype, n){
+	def myVal = "cpVal_" + n
 	def result = null
 	if (myPtype == "string"){
-    	result = input(
+		result = input(
 					name		: myVal
-					,title		: "parameter value"
+					,title		: "string value"
 					,type		: "text"
 					,required	: false
 				)
 	} else if (myPtype == "number"){
-    	result = input(
+		result = input(
 					name		: myVal
-					,title		: "parameter value"
+					,title		: "integer value"
 					,type		: "number"
 					,required	: false
 				)
-    }
+	} else if (myPtype == "decimal"){
+		result = input(
+					name		: myVal
+					,title		: "decimal value"
+					,type		: "decimal"
+					,required	: false
+				)
+	}
 	return result
 }
 def getCmdLabel(){
 	def cmd
-	if (settings.cCmdOn) cmd = settings.cCmdOn.value
-    def cpTypes = settings.findAll{it.key.startsWith("cpType_")}.sort()
+	if (settings.cCmd) cmd = settings.cCmd.value
+	def cpTypes = settings.findAll{it.key.startsWith("cpType_")}.sort()
 	def result = null
-    if (cmd) {
-    	//log.debug "command:${cmd}" 
-    	result = "${cmd}("
-        if (cpTypes.size() == 0){
-        	result = result + ")"
-        } else {
+	if (cmd) {
+		result = "${cmd}("
+		if (cpTypes.size() == 0){
+			result = result + ")"
+		} else {
 			result = "${result}${getParams(cpTypes)})"
 		}
-    }
-    return result
+	}
+	return result
 }
 def getParams(cpTypes){
 	def result = ""
-    cpTypes.each{ cpType ->
-    	//log.info "param:${param.key}"
-        def i = cpType.key.replaceAll("cpType_","")
-        def cpVal = settings.find{it.key == "cpVal_${i}"}
-        if (cpType.value == "string"){
-           	result = result + "'${cpVal.value}'," 
-        } else {
-           	result = result + "${cpVal.value}," 
-        }
+	cpTypes.each{ cpType ->
+		def i = cpType.key.replaceAll("cpType_","")
+		def cpVal = settings.find{it.key == "cpVal_${i}"}
+		if (cpType.value == "string"){
+		   	result = result + "'${cpVal.value}'," 
+		} else {
+			if (cpVal.value.isNumber()){
+				result = result + "${cpVal.value}," 
+			} else {
+				result = result + "[${cpVal.value}]: is not a number,"
+			}
+		}
 	}
 	result = result[0..-2]   
-    return result
+	return result
 }
-def parameterLabel() {
+def parameterLabel(){
 	def howMany = (state.howManyP ?: 1) - 1
 	def result = ""
 	if (howMany) {
 		for (int i = 1; i <= howMany; i++) {
 			result = result + parameterLabelN(i) + "\n"
 		}
-        result = result[0..-2]
-    }
+		result = result[0..-2]
+	}
 	return result
 }
 
-def parameterLabelN(i) {
+def parameterLabelN(i){
 	def result = ""
 	def cpType = settings.find{it.key == "cpType_${i}"}
 	def cpVal = settings.find{it.key == "cpVal_${i}"}
-    if (cpType && cpVal){
+	if (cpType && cpVal){
 		result = "p${i} - type:${cpType.value}, value:${cpVal.value}"
 	} 
 	return result
 }
 def getParamsAsList(cpTypes){
 	def result = []
-    cpTypes.each{ cpType ->
-        def i = cpType.key.replaceAll("cpType_","")
-        def cpVal = settings.find{it.key == "cpVal_${i}"}
-        if (cpType.value == "string"){
-           	result << "${cpVal.value}" 
-        } else {
-           	result << cpVal.value.toInteger() 
-        }
+	cpTypes.each{ cpType ->
+		def i = cpType.key.replaceAll("cpType_","")
+		def cpVal = settings.find{it.key == "cpVal_${i}"}
+		if (cpType.value == "string"){
+		   	result << "${cpVal.value}" 
+		} else if (cpType.value == "decimal"){
+		   	result << cpVal.value.toBigDecimal()
+		} else {
+			result << cpVal.value.toInteger() 
+		}
 	}
-	//result = result[0..-2]   
-    return result
+	return result
 }
 
 
-def installed() {
+def installed(){
 	log.debug "Installed with settings: ${settings}"
 	initialize()
 }
 
-def updated() {
+def updated(){
 	log.debug "Updated with settings: ${settings}"
-	state.pCount = 0
 	unsubscribe()
 	initialize()
 }
+def getCommands(showAll){
+	def result = [] 
+	def cmdMaps = state.customCommands
+	cmdMaps.each{ cmd ->
+		def option = [(cmd.key):(cmd.value.text)]
+		if (showAll){
+			result.push(option)
+		} else if (cmd.key != "0") {
+			result.push(option)	
+		}
+	}
+	return result
+}
+def isValidCommand(cmdIDS){
+	def result = false
+	cmdIDS.each{ cmdID ->
+		log.debug "checking:${cmdID}"
+		def cmd = state.customCommands["${cmdID}"]
+		if (cmd) result = true
+	}
+	return result
+}
+
+def deleteCommands(){
+	def result
+	def cmdMaps = state.customCommands
+	if (deleteCmds.size == 1) result = "Command removed"
+	else result = "Commands removed"
+	deleteCmds.each{ it -> 
+		cmdMaps.remove(it)
+	}
+	return result
+}
+
+def addCommand(){
+	def result
+	def cmdMaps = state.customCommands
+	def newCmd = getCmdLabel()
+	def found = cmdMaps.find{ it.value.text == "${newCmd}" }
+	//only update if not found...
+	if (!found) {
+		state.lastCmdIDX = state.lastCmdIDX + 1
+		def nextIDX = state.lastCmdIDX
+		def cmd = [text:"${newCmd}",cmd:"${cCmd}"]
+		def params = [:]
+		def cpTypes = settings.findAll{it.key.startsWith("cpType_")}.sort()
+		cpTypes.each{ cpType ->
+			def i = cpType.key.replaceAll("cpType_","")
+			def cpVal = settings.find{it.key == "cpVal_${i}"}
+			def param = ["type":"${cpType.value}","value":"${cpVal.value}"]
+			params.put(i, param)
+		}	
+		cmd.put("params",params)
+		cmdMaps.put((nextIDX),cmd)
+		result = "command:${newCmd} was added"
+	} else {
+		result = "command:${newCmd} was not added, it already exists."
+	}
+	return result
+}
+
+def execTestCommand(){
+	def result
+	def cTypes = settings.findAll{it.key.startsWith("cpType_")}
+	def p = getParamsAsList(cTypes) as Object[]
+	devices.each { device ->
+		try {
+			device."${cCmd}"(p)
+			//log.info "${device.displayName}: command succeeded"
+		}
+		catch (IllegalArgumentException e){
+			//log.info "${device.displayName}: command failed${e}"
+			result = "${device.displayName}: command failed\n${e}\n\n"
+		}
+	}
+	return result
+}
+
+def execCommand(){
+	def result = ""
+	def pList = []
+	def cmdMap = state.customCommands["${testCmd}"] 
+	if (testCmd && cmdMap) {
+		cmdMap.params.each{ p ->
+			if (p.value.type == "string"){
+				pList << "${p.value.value}"
+			} else {
+				pList << p.value.value.toInteger()
+			}
+		}
+		def p = pList as Object[]
+		devices.each { device ->
+			try {
+				device."${cmdMap.cmd}"(p)
+				result = result + "${device.displayName}: command succeeded\n\n"
+			}
+			catch (IllegalArgumentException e){
+				result = result + "${device.displayName}: command failed\n${e}\n\n"
+			}
+		}
+		return result
+	}
+}
 def initialize() {
-	//fire the custom command at them...
-    //whatevs.["${commands}()"]
-    
-    //incomming command
-    //fanOn(xxs)
-    //def cmd = "fanOn(80)"
-     /*
-    def s1 = commands.split(/\(|\)/)
-    def method = s1[0]
-    log.info "method:${method}"
-    if (s1[1]) {
-    	def params = s1[1].split(",")
-        log.info "params:${params}"
-    }
-    //log.info "${cmd.split(/\(|\)/)}"
-	*/
-    def cTypes = settings.findAll{it.key.startsWith("cpType_")}
-    log.debug "cTypes:${cTypes}"
-    log.debug "getParams:${getParamsAsList(cTypes)}"
-    def p = getParamsAsList(cTypes) as Object[]
-    log.debug "p:${p}"
-    
-    devices.each { device ->
-    	log.info "${device.displayName}: ${cCmdOn}(${p})"
-        try {
-        	device."${cCmdOn}"(p)
-            log.info "-worked"
-        }
-        catch (e){
-        	log.info "-failed"
-        }
-    }
-   
-    
+
 }
