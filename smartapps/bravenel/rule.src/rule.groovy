@@ -389,8 +389,10 @@ def selectActionsTrue() {
             	input( name: "customDeviceTrue", type: "capability.actuator", title: "Run custom device command",multiple: true, required: false, submitOnChange: true)
                 if (customDeviceTrue) {
                 	input( name: "ccTrue", type: "enum", title: "--Run this command", multiple: false, required: false, options: cstCmds, submitOnChange: true)
-                 	def c = cstCmds.find{it[(ccTrue)]}[(ccTrue)] 
-                	setActTrue(customDeviceTrue, "call: ${c} on ${customDeviceTrue}")    
+                    if (ccTrue){
+                    	def c = cstCmds.find{it[(ccTrue)]}[(ccTrue)] 
+                		setActTrue(customDeviceTrue, "call: ${c} on ${customDeviceTrue}")    
+                    }
                 }
             }
 			input "modeTrue", "mode", title: "Set the mode", multiple: false, required: false, submitOnChange: true
@@ -471,9 +473,11 @@ def selectActionsFalse() {
             	input( name: "customDeviceFalse", type: "capability.actuator", title: "Run custom device command",multiple: true, required: false, submitOnChange: true)
             	if (customDeviceFalse) {
              		input( name: "ccFalse", type: "enum", title: "--Run this command", multiple: false, required: false, options: cstCmds, submitOnChange: true)
-                def c = cstCmds.find{it[(ccFalse)]}[(ccFalse)] 
-            	setActFalse(customDeviceFalse, "call: ${c} on ${customDeviceFalse}")    
-            	}
+                if (ccFalse) {
+                	def c = cstCmds.find{it[(ccFalse)]}[(ccFalse)] 
+            		setActFalse(customDeviceFalse, "call: ${c} on ${customDeviceFalse}")    
+            		}
+                }
             }
 			input "modeFalse", "mode", title: "Set the mode", multiple: false, required: false, submitOnChange: true
 			if(modeFalse) addToActFalse("Mode: $modeFalse")
