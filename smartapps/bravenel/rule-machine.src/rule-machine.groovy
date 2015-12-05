@@ -442,33 +442,35 @@ def execTestCommand(){
 def execCommand(cmdID){
     def result = ""
 	def pList = []
-	def cmdMap = state.customCommands["${cmdID}"] 
-	if (testCmd && cmdMap) {
-		cmdMap.params.each{ p ->
-			if (p.value.type == "string"){
-				pList << "${p.value.value}"
-       		} else if (p.value.type == "decimal"){
-		   		pList << p.value.value.toBigDecimal()
-			} else {
-				pList << p.value.value.toInteger()
+    if (cmdID){
+		def cmdMap = state.customCommands["${cmdID}"] 
+		if (testCmd && cmdMap) {
+			cmdMap.params.each{ p ->
+				if (p.value.type == "string"){
+					pList << "${p.value.value}"
+       			} else if (p.value.type == "decimal"){
+		   			pList << p.value.value.toBigDecimal()
+				} else {
+					pList << p.value.value.toInteger()
+				}
 			}
+			def p = pList as Object[]
+			devices.each { device ->
+				try {
+					device."${cmdMap.cmd}"(p)
+					result = "Command succeeded"
+				}
+				catch (IllegalArgumentException e){
+           			def em = e as String
+            		def ems = em.split(":")
+            		ems = ems[2].replace(" [","").replace("]","")
+            		ems = ems.replaceAll(", ","\n")
+            		result = "Command failed, valid commands:\n${ems}"
+				}
+			}
+			return result
 		}
-		def p = pList as Object[]
-		devices.each { device ->
-			try {
-				device."${cmdMap.cmd}"(p)
-				result = "Command succeeded"
-			}
-			catch (IllegalArgumentException e){
-           		def em = e as String
-            	def ems = em.split(":")
-            	ems = ems[2].replace(" [","").replace("]","")
-            	ems = ems.replaceAll(", ","\n")
-            	result = "Command failed, valid commands:\n${ems}"
-			}
-		}
-		return result
-	}
+    }
 }
 def getDeviceCommands(){
     def result = ""
