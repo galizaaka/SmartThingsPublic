@@ -1,160 +1,29 @@
-/**
- *  enumerate Beta 1  device command exploration tool 
- *
- *  Copyright 2015 Mike Maxwell
- *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- *  in compliance with the License. You may obtain a copy of the License at:
- *
- *	  http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
- *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
- *  for the specific language governing permissions and limitations under the License.
- *
- */
 definition(
-	name: "enumerate",
-	namespace: "MikeMaxwell",
-	author: "Mike Maxwell",
-	description: "Device command explorer",
-	category: "My Apps",
-	iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
-	iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
-	iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
-
+    name: "enumerate",
+    singleInstance: true,
+    namespace: "MikeMaxwell",
+    author: "Mike Maxwell",
+    description: "Device command and exploration tool",
+    category: "My Apps",
+  	iconUrl: "https://s3.amazonaws.com/smartapp-icons/ModeMagic/Cat-ModeMagic.png",
+    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/ModeMagic/Cat-ModeMagic@2x.png",
+    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/ModeMagic/Cat-ModeMagic@3x.png"
+)
 
 preferences {
-	page(name: "customCommandsPAGE")
-	page(name: "addCustomCommandPAGE")
-	page(name: "deleteCustomCommandPAGE")
-	page(name: "customCommandPAGE")
-	page(name: "customParamsPAGE")
-	page(name: "generalApprovalPAGE")
-}
-/***** page methods	*****/
-def customCommandsPAGE() {
-	if (!state.lastCmdIDX) state.lastCmdIDX = 0
-	if (!state.customCommands) state.customCommands = [0:[text:"showMethods()",cmd:"showMethods",params:[:]]]
-
-	dynamicPage(name: "customCommandsPAGE", title: "Custom Commands", uninstall: true, install: true) {
-	section() {
-			input(
-				name			: "devices"
-				,title			: "Test Devices"
-				,multiple		: true
-				,required		: false
-				,type			: "capability.actuator"
-				,submitOnChange	: true
-			)
-			if (settings.devices){
-				input(
-					name			: "testCmd"
-					,title			: "Select command to test"
-					,multiple		: false
-					,required		: false
-					,type			: "enum"
-					,options		: getCommands(true)
-					,submitOnChange	: true
-				)
-				if (isValidCommand([settings.testCmd])){
-					def result = execCommand(settings.testCmd) 
-					paragraph "${result}"
-				}
-			} //end devices
-			href( "addCustomCommandPAGE"
-				,title		: ""
-				,description: "Add custom command..."
-				,state		: null
-			)
-			if (getCommands(false)){
-				href( "deleteCustomCommandPAGE"
-					,title		: ""
-					,description: "Delete custom commands..."
-					,state		: null
-				)
-			}
-		}
-	}
-}
-def deleteCustomCommandPAGE(){
-	dynamicPage(name: "deleteCustomCommandPAGE", title: "Delete Custom Commands", uninstall: false, install: false) {
-		section(){
-			input(
-				name			: "deleteCmds"
-				,title			: "Select commands to delete"
-				,multiple		: true
-				,required		: false
-				,type			: "enum"
-				,options		: getCommands(false)
-				,submitOnChange	: true
-			)
-			log.debug "deleteCmds:${deleteCmds}"
-			if (isValidCommand(deleteCmds)){
-				href( "generalApprovalPAGE"
-					,title			: ""
-					,description	: "Delete Command(s) Now"
-					,state			: null
-					,params			: [method:"deleteCommands",title:"Delete Command",nextPage:"customCommandsPAGE"]
-					,submitOnChange	: true
-				)
-			}
-		}
-	}
+    page(name: "customCommandsPAGE")
+    page(name: "generalApprovalPAGE")
+    page(name: "addCustomCommandPAGE")		
+	page(name: "deleteCustomCommandPAGE")	
+	page(name: "customParamsPAGE")			
+			
 }
 
-def addCustomCommandPAGE(){
-	def cmdLabel = getCmdLabel()
-	def complete = "" 
-	def test = false
-	def title = "Create custom command"
-	if (cmdLabel){
-		complete = "complete"
-		test = true
-		title = "Custom command"
-	}
-	dynamicPage(name: "addCustomCommandPAGE", title: "Add Custom Commands", uninstall: false, install: false) {
-		section(){
-   			href( "customCommandPAGE"
-				,title		: title
-				,description: cmdLabel ?: "Tap to set"
-				,state		: complete
-			)
-			if (test){
-			//test devices
-		   		input(
-					name			: "devices"
-					,title			: "Test Devices"
-					,multiple		: true
-					,type			: "capability.actuator"
-					,required		: false
-					,submitOnChange	: true
-				)
-				if (devices){
-					def result
-					result = execTestCommand() 
-					if (!result){
-						paragraph "Command suceeded"
-						href( "generalApprovalPAGE"
-							,title		: ""
-							,description: "Save Command Now"
-							,state		: null
-							,params		: [method:"addCommand",title:"Add Command",nextPage:"customCommandsPAGE"]
-						)
-					} else {
-						paragraph "${result}"
-					}
-				}
-			}
-		}
-	}
-}
 def generalApprovalPAGE(params){
 	def title = params.title
 	def method = params.method
-	def nextPage = params.nextPage
 	def result
-	dynamicPage(name: "generalApprovalPAGE", title: title, nextPage: nextPage){
+	dynamicPage(name: "generalApprovalPAGE", title: title ){
 		section() {
 			if (method) {
 				result = app."${method}"()
@@ -163,15 +32,85 @@ def generalApprovalPAGE(params){
 		}
 	}
 }
-def customCommandPAGE(){
-	dynamicPage(name: "customCommandPAGE", title: "Create custom command"){
-		section() {
+
+def customCommandsPAGE() {
+	if (!state.lastCmdIDX) state.lastCmdIDX = 0
+	def savedCommands = getCommands()
+	dynamicPage(name: "customCommandsPAGE", title: "Custom Commands", uninstall: true, install: true) {
+		section(){
+			input(
+				name			: "baseDevice"
+				,title			: "Base Device Type"
+				,multiple		: false
+				,required		: false
+				,type			: "enum"
+                ,options		: [["capability.actuator":"Actuator"],["capability.switch":"Switch"],["capability.musicPlayer":"Music Player"],["capability.notification":"Notification"],["capability.timedSession":"Timed Session"],["capability.consumable":"Consumable"],["capability.imageCapture":"Image Capture"]]
+				,submitOnChange	: true
+			)
+            if (baseDevice){
+				input(
+					name			: "devices"
+					,title			: "Test device"
+					,multiple		: false
+					,required		: false
+					,type			: baseDevice
+					,submitOnChange	: true
+				)
+            }
+			if (devices && baseDevice && savedCommands.size() != 0){
+				input(
+					name			: "testCmd"
+					,title			: "Select saved command to test"
+					,multiple		: false
+					,required		: false
+					,type			: "enum"					
+                	,options		: savedCommands
+					,submitOnChange	: true
+				)
+            }
+        }
+        def result = execCommand(settings.testCmd)
+        if (result) {
+        	section("${result}"){
+    		}
+        }
+    	section(){
+        	if (devices && baseDevice){
+				href( "addCustomCommandPAGE"
+					,title		: "New custom command..."
+					,description: ""
+					,state		: null
+				)
+        	}
+			if (getCommands()){
+				href( "deleteCustomCommandPAGE"
+					,title		: "Delete custom commands..."
+					,description: ""
+					,state		: null
+				)
+			}
+		}
+	}
+}
+def addCustomCommandPAGE(){
+	def cmdLabel = getCmdLabel()
+	def complete = "" 
+	def test = false
+    def pageTitle = "Create new custom command for:\n${devices}" 
+	if (cmdLabel){
+		complete = "complete"
+		test = true
+	}
+	dynamicPage(name: "addCustomCommandPAGE", title: pageTitle, uninstall: false, install: false) {
+		section(){
 			input(
 		   		name			: "cCmd"
-				,title			: "Command"
+				,title			: "Available device commands"
 				,multiple		: false
 				,required		: true
-				,type			: "text"
+				//,type			: "text"
+                ,type			: "enum"
+                ,options		: getDeviceCommands()
 				,submitOnChange	: true
 		 	)
 			href( "customParamsPAGE"
@@ -179,6 +118,47 @@ def customCommandPAGE(){
 				,description: parameterLabel()
 				,state: null
 			)
+        }
+ 		if (test){
+        	def result = execTestCommand()
+           	section("Configured command: ${cmdLabel}\n${result}"){
+			//}
+            //section(result){
+            	if (result == "suceeded"){
+                   	if (!commandExists(cmdLabel)){
+						href( "generalApprovalPAGE"
+							,title		: "Save command now"
+							,description: ""
+							,state		: null
+							,params		: [method:"addCommand",title:"Add Command"]
+						)
+                   	}
+				} 
+			}
+		}
+	}
+}
+def deleteCustomCommandPAGE(){
+	dynamicPage(name: "deleteCustomCommandPAGE", title: "Delete custom commands", uninstall: false, install: false) {
+		section(){
+			input(
+				name			: "deleteCmds"
+				,title			: "Select commands to delete"
+				,multiple		: true
+				,required		: false
+				,type			: "enum"
+				,options		: getCommands()
+				,submitOnChange	: true
+			)
+			if (isValidCommand(deleteCmds)){
+				href( "generalApprovalPAGE"
+					,title			: "Delete command(s) now"
+					,description	: ""
+					,state			: null
+					,params			: [method:"deleteCommands",title:"Delete Command"]
+					,submitOnChange	: true
+				)
+			}
 		}
 	}
 }
@@ -201,6 +181,40 @@ def customParamsPAGE(p){
 			}
 		}
 	}
+}
+
+def installed() {
+    initialize()
+}
+
+def updated() {
+    unsubscribe()
+    initialize()
+}
+
+def initialize() {
+	childApps.each {child ->
+            log.info "Installed Rules: ${child.label}"
+    }
+}
+/***** child specific methods *****/
+
+/*
+//stub for non expert Rule Machine page
+// must remain commented out for expert version
+def getCommands(){
+	return []
+}
+*/
+def getCommandMap(cmdID){
+	return state.customCommands["${cmdID}"]
+}
+
+/***** local custom command specific methods *****/
+def anyCustom(){
+	def result = null
+    if (getCommands()) result = "complete"
+    return result
 }
 
 def getParamType(myParam,isLast){  
@@ -276,6 +290,7 @@ def getParams(cpTypes){
 	result = result[0..-2]   
 	return result
 }
+
 def parameterLabel(){
 	def howMany = (state.howManyP ?: 1) - 1
 	def result = ""
@@ -312,35 +327,19 @@ def getParamsAsList(cpTypes){
 	}
 	return result
 }
-
-
-def installed(){
-	log.debug "Installed with settings: ${settings}"
-	initialize()
-}
-
-def updated(){
-	log.debug "Updated with settings: ${settings}"
-	unsubscribe()
-	initialize()
-}
-def getCommands(showAll){
+def getCommands(){
 	def result = [] 
-	def cmdMaps = state.customCommands
+	def cmdMaps = state.customCommands ?: []
 	cmdMaps.each{ cmd ->
 		def option = [(cmd.key):(cmd.value.text)]
-		if (showAll){
-			result.push(option)
-		} else if (cmd.key != "0") {
-			result.push(option)	
-		}
+        result.push(option)
 	}
 	return result
 }
+
 def isValidCommand(cmdIDS){
 	def result = false
 	cmdIDS.each{ cmdID ->
-		log.debug "checking:${cmdID}"
 		def cmd = state.customCommands["${cmdID}"]
 		if (cmd) result = true
 	}
@@ -357,12 +356,18 @@ def deleteCommands(){
 	}
 	return result
 }
-
+def commandExists(cmd){
+	def result = false
+	if (state.customCommands){
+    	result = state.customCommands.find{ it.value.text == "${cmd}" }
+    }
+    return result
+}
 def addCommand(){
 	def result
+    def newCmd = getCmdLabel()
+    def found = commandExists(newCmd)
 	def cmdMaps = state.customCommands
-	def newCmd = getCmdLabel()
-	def found = cmdMaps.find{ it.value.text == "${newCmd}" }
 	//only update if not found...
 	if (!found) {
 		state.lastCmdIDX = state.lastCmdIDX + 1
@@ -377,10 +382,11 @@ def addCommand(){
 			params.put(i, param)
 		}	
 		cmd.put("params",params)
-		cmdMaps.put((nextIDX),cmd)
-		result = "command:${newCmd} was added"
+        if (cmdMaps) cmdMaps.put((nextIDX),cmd)
+        else state.customCommands = [(nextIDX):cmd]
+		result = "command: ${newCmd} was added"
 	} else {
-		result = "command:${newCmd} was not added, it already exists."
+		result = "command: ${newCmd} was not added, it already exists."
 	}
 	return result
 }
@@ -393,10 +399,14 @@ def execTestCommand(){
 		try {
 			device."${cCmd}"(p)
 			//log.info "${device.displayName}: command succeeded"
+            result = "suceeded"
 		}
 		catch (IllegalArgumentException e){
-			//log.info "${device.displayName}: command failed${e}"
-			result = "${device.displayName}: command failed\n${e}\n\n"
+           	def em = e as String
+            def ems = em.split(":")
+            ems = ems[2].replace(" [","").replace("]","")
+            ems = ems.replaceAll(", ","\n")
+            result = "failed, valid commands:\n${ems}"
 		}
 	}
 	return result
@@ -405,28 +415,49 @@ def execTestCommand(){
 def execCommand(cmdID){
     def result = ""
 	def pList = []
-	def cmdMap = state.customCommands["${cmdID}"] 
-	if (testCmd && cmdMap) {
-		cmdMap.params.each{ p ->
-			if (p.value.type == "string"){
-				pList << "${p.value.value}"
-			} else {
-				pList << p.value.value.toInteger()
+    if (cmdID){
+		def cmdMap = state.customCommands["${cmdID}"] 
+		if (testCmd && cmdMap) {
+			cmdMap.params.each{ p ->
+				if (p.value.type == "string"){
+					pList << "${p.value.value}"
+       			} else if (p.value.type == "decimal"){
+		   			pList << p.value.value.toBigDecimal()
+				} else {
+					pList << p.value.value.toInteger()
+				}
 			}
+			def p = pList as Object[]
+			devices.each { device ->
+				try {
+					device."${cmdMap.cmd}"(p)
+					result = "Command succeeded"
+				}
+				catch (IllegalArgumentException e){
+           			def em = e as String
+            		def ems = em.split(":")
+            		ems = ems[2].replace(" [","").replace("]","")
+            		ems = ems.replaceAll(", ","\n")
+            		result = "Command failed, valid commands:\n${ems}"
+				}
+			}
+			return result
 		}
-		def p = pList as Object[]
-		devices.each { device ->
-			try {
-				device."${cmdMap.cmd}"(p)
-				result = result + "${device.displayName}: command succeeded\n\n"
-			}
-			catch (IllegalArgumentException e){
-				result = result + "${device.displayName}: command failed\n${e}\n\n"
-			}
-		}
-		return result
-	}
+    }
 }
-def initialize() {
-
+def getDeviceCommands(){
+    def result = ""
+	devices.each { device ->
+		try {
+			device."xxx"()
+			result = "Command succeeded"
+		}
+		catch (IllegalArgumentException e){
+            def em = e as String
+            def ems = em.split(":")
+            ems = ems[2].replace(" [","").replace("]","")
+            result = ems.split(", ").collect{it as String}
+		}
+	}
+	return result
 }
