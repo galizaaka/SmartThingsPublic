@@ -44,7 +44,7 @@ def customCommandsPAGE() {
 				,multiple		: false
 				,required		: false
 				,type			: "enum"
-                ,options		: [["capability.actuator":"Actuator"],["capability.switch":"Switch"],["capability.musicPlayer":"Music Player"],["capability.notification":"Notification"],["capability.timedSession":"Timed Session"],["capability.consumable":"Consumable"],["capability.imageCapture":"Image Capture"]]
+                ,options		: [["capability.actuator":"Actuator"],["capability.switch":"Switch"],["capability.presenceSensor":"Presence Sensor"],["capability.musicPlayer":"Music Player"],["capability.mediaController":"Media Controller"],["capability.notification":"Notification"],["capability.timedSession":"Timed Session"],["capability.consumable":"Consumable"],["capability.imageCapture":"Image Capture"],["capability.speechSynthesis":"Speech Synthesis"]]
 				,submitOnChange	: true
 			)
             if (baseDevice){
@@ -314,6 +314,7 @@ def parameterLabelN(i){
 }
 def getParamsAsList(cpTypes){
 	def result = []
+    cpTypes.sort()
 	cpTypes.each{ cpType ->
 		def i = cpType.key.replaceAll("cpType_","")
 		def cpVal = settings.find{it.key == "cpVal_${i}"}
@@ -375,6 +376,7 @@ def addCommand(){
 		def cmd = [text:"${newCmd}",cmd:"${cCmd}"]
 		def params = [:]
 		def cpTypes = settings.findAll{it.key.startsWith("cpType_")}.sort()
+        //log.debug "add command${cpTypes}"
 		cpTypes.each{ cpType ->
 			def i = cpType.key.replaceAll("cpType_","")
 			def cpVal = settings.find{it.key == "cpVal_${i}"}
@@ -393,11 +395,11 @@ def addCommand(){
 
 def execTestCommand(){
 	def result
-	def cTypes = settings.findAll{it.key.startsWith("cpType_")}
-	def p = getParamsAsList(cTypes) as Object[]
+	def cTypes = settings.findAll{it.key.startsWith("cpType_")}.sort()
+	def p = getParamsAsList(cTypes).sort() as Object[]
 	devices.each { device ->
 		try {
-			device."${cCmd}"(p)
+			device."${cCmd}"(p) 
 			//log.info "${device.displayName}: command succeeded"
             result = "suceeded"
 		}
@@ -418,7 +420,8 @@ def execCommand(cmdID){
     if (cmdID){
 		def cmdMap = state.customCommands["${cmdID}"] 
 		if (testCmd && cmdMap) {
-			cmdMap.params.each{ p ->
+        	def params = cmdMap.params.sort()
+			params.each{ p ->
 				if (p.value.type == "string"){
 					pList << "${p.value.value}"
        			} else if (p.value.type == "decimal"){
