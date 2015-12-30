@@ -1,7 +1,7 @@
 /**
- *  zoneMotionChild v 2.0 2015-10-20
+ *  zoneMotionChild v 2.0.1 2015-12-30
  *
- *  Copyright 2015 Mike Maxwell
+ *  Copyright 2015-10-20 Mike Maxwell
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -12,6 +12,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ 	2.0.1 2015-12-30 fixed agg zone types incorrectly going inactive when a zone motion remained for longer than the timeout setting
  */
  
 definition(
@@ -64,7 +65,7 @@ def activityTimeoutHandler(evtTime,device){
     	def timeoutRemaining = (state.nextRunTime - evtTime) / 1000
         text = ", (${timeoutRemaining.toInteger()} seconds remaining)," 
     }
-    log.debug "Zone is active via [${device}]${text} check again in ${timeout} seconds..."
+    log.debug "Zone: ${simMotion.displayName} is active via [${device}]${text} zone timeout reset to ${timeout} seconds..."
     state.nextRunTime = evtTime + (timeout * 1000) 
     runIn(timeout,zoneOff)
 }
@@ -109,8 +110,8 @@ def anyTriggersActive(evtTime){
     return enable
 }
 def activeHandler(evt){
-	//log.trace "now:${new Date()}"
-    log.trace "active handler fired via [${evt.displayName}] evt.date:${evt.date.format("yyyy-MM-dd HH:mm:ss")}"
+ 
+    log.trace "active handler fired via [${evt.displayName}] UTC: ${evt.date.format("yyyy-MM-dd HH:mm:ss")}"
 	def evtTime = evt.date.getTime()
     //log.trace "active handler evt.date+3:${new Date(evtTime)}"
     
@@ -154,15 +155,26 @@ def zoneOn(){
    	}
 }
 def zoneOff(){
-	state.nextRunTime = 0
     //def simMotion = getChildDevice("${app.id}/wonk")
 	if (simMotion.currentValue("motion") != "inactive") {
-		log.info "Zone: ${simMotion.displayName} is inactive."
-        state.zoneTriggerActive = false
-		simMotion.inactive()
+    	//check for all inactive
+        if (allInactive()){
+        	state.nextRunTime = 0
+        	log.info "Zone: ${simMotion.displayName} is inactive."
+        	state.zoneTriggerActive = false
+			simMotion.inactive()
+        } else {
+        	def timeout = settings.zoneTimeout.toInteger()
+            def evt = new Date()
+        	def evtTime = evt.getTime()
+            def active = motionSensors.findAll{ it.currentValue("motion") == "active" }
+        	log.debug "Zone: ${simMotion.displayName} is still active via ${active}, check again in ${timeout} seconds..."
+    		state.nextRunTime = evtTime + (timeout * 1000) 
+    		runIn(timeout,zoneOff)
+        }
     }
 }
-def allInactive () {
+def allInactive() {
 	//log.debug "allInactive:${motionSensors.currentValue("motion")}"
 	def state = motionSensors.currentState("motion").every{ s -> s.value == "inactive"}
     //log.debug "allInactive: ${state}"
