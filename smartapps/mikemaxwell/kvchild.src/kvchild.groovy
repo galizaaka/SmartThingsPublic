@@ -40,6 +40,8 @@ def updated() {
 }
 def initialize() {
     subscribe(tempSensors, "temperature", ventHandler)
+    subscribe(vents, "pressure", getAdjustedPressure)
+    
     //state.runMaps = []
     //log.info "stat state:${tStat.currentValue("thermostatOperatingState")} runMaps:${state.runMaps.size()}"
     //app.updateLabel("${settings.zoneName} Vent Zone") 
@@ -136,12 +138,14 @@ def main(){
             }
 	}
 }
+
 def appProps(){
 	app.properties.each{ p ->
     	log.debug "appP:${p}"
     }
     return "whatevers..."
 }
+
 def getVentReport(){
 	def report = []
     vents.each{ vent ->
@@ -157,6 +161,17 @@ def getVentReport(){
         report.add((vent.displayName):set)
     }
     return report.toString() ?: "nothing new..."
+}
+
+def getAdjustedPressure(evt){
+	//if (state.running){
+    	//find start up settings
+    	def s = state."${evt.deviceId}"
+        //log.debug "device:${evt.displayName}, state:${s}"
+        //if (s)
+    //}
+ 
+	
 }
 
 def ventHandler(evt){
@@ -177,8 +192,9 @@ def ventHandler(evt){
 
 def systemOn(setPoint,hvacMode){
 	def cTemp = tempSensors.currentValue("temperature")
-    //state.T1 = cTemp.toFloat()
-    //state.P1 = vents.currentValue("pressure").toFloat()
+    vents.each{ vent ->
+		state."${vent.id}" = [P:vent.currentValue("pressure"),T:vent.currentValue("temperature")] 	
+    }
     state.hvacMode = hvacMode
     
 	if (hvacMode == "heating"){
@@ -189,6 +205,7 @@ def systemOn(setPoint,hvacMode){
     		log.info "System heat on, vents set to:${maxVo.toInteger()}"
     	} else {
     		state.running = false
+            vents.setLevel(minVo.toInteger())
     		log.info "System on, nothing to do, heating set point already met"
     	}         
     } else if (hvacMode == "cooling"){
@@ -199,12 +216,12 @@ def systemOn(setPoint,hvacMode){
     		log.info "System cool on, vents set to:${maxVo.toInteger()}"
     	} else {
     		state.running = false
+            vents.setLevel(minVo.toInteger())
     		log.info "System on, nothing to do, cooling set point already met"
     	}         
     } else {
     	//something pithy here...
     }
-    
     log.info "systemOn- mode:${hvacMode}, main setPoint:${setPoint}, zone setPoint:${state.setPoint}, current zone temp:${cTemp}"
      
 }
