@@ -38,8 +38,8 @@ def updated() {
 	initialize()
 }
 def initialize() {
-    subscribe(tStat, "thermostatOperatingState", stateHandeler)
-    subscribe(tStat, "thermostatSetpoint", setPointHandeler)
+    subscribe(tStat, "thermostatOperatingState", notifyZones)
+    subscribe(tStat, "thermostatSetpoint", notifyZones)
     //subscribe(tStat, "thermostatHeatingSetpoint", setPointHandeler)
     /*
     state.runMaps = []
@@ -88,17 +88,19 @@ def main(){
             }
 	}
 }
-def setPointHandeler(evt){
-	//coolingSetpoint
-    //thermostatHeatingSetpoint
-    log.debug "setPointHandeler- evt:${evt.value}"
-}
 
-def stateHandeler(evt){
-	def state  = evt.value
-    def setPoint = tStat.currentValue("heatingSetpoint")
-    //log.info "stateHandler- event:${state} setPoint:${setPoint}"
+def notifyZones(evt){
+	log.debug "notifyZones- value:${evt.value}, description:${evt.descriptionText}"
+    
+	def state = tStat.currentValue("thermostatOperatingState")
+   	def setPoint 
+    
 	if (state == "heating" || state == "cooling"){
+    	if (state == "heating"){
+        	setPoint = tStat.currentValue("heatingSetpoint")
+        } else {
+        	setPoint = tStat.currentValue("coolingSetpoint")
+        }
         childApps.each {child ->
         	child.systemOn(setPoint,state)    
     	}
@@ -107,7 +109,7 @@ def stateHandeler(evt){
         	child.systemOff()
     	}
     } else {
-    	log.info "stateHandler- ignored:${state}"
+    	log.info "notifyZones- ignored:${state}"
     }
 }
 

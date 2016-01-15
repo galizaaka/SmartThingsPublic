@@ -1,5 +1,5 @@
 /**
- *  kvChild
+ *  kvChild 0.0.2
  *
  *  Copyright 2015 Mike Maxwell
  *
@@ -41,7 +41,8 @@ def updated() {
 def initialize() {
     subscribe(tempSensors, "temperature", ventHandler)
     subscribe(vents, "pressure", getAdjustedPressure)
-    
+    subscribe(vents, "temperature", getAdjustedPressure)
+    //state.tempScale = location.temperatureScale now set if empty by options inputs
     //state.runMaps = []
     //log.info "stat state:${tStat.currentValue("thermostatOperatingState")} runMaps:${state.runMaps.size()}"
     //app.updateLabel("${settings.zoneName} Vent Zone") 
@@ -72,7 +73,7 @@ def main(){
                    input(
                         name			: "vents"
                         ,title			: "Keen vents in this Zone:"
-                        ,multiple		: false
+                        ,multiple		: true
                         ,required		: true
                         //,type			: "device.KeenHomeSmartVent"
                         ,type			: "capability.switchLevel"
@@ -123,7 +124,8 @@ def main(){
                 		,multiple		: false
                 		,required		: true
                 		,type			: "enum"
-                        ,options		: [["-5":"-5°"],["-4":"-4°"],["-3":"-3°"],["-2":"-2°"],["-1":"-1°"],["0":"0°"],["1":"1°"],["2":"2°"],["3":"3°"],["4":"4°"],["5":"5°"]]
+                        //,options		: [["-5":"-5°"],["-4":"-4°"],["-3":"-3°"],["-2":"-2°"],["-1":"-1°"],["0":"0°"],["1":"1°"],["2":"2°"],["3":"3°"],["4":"4°"],["5":"5°"]]
+                        ,options 		: zoneTempOptions()
                         ,defaultValue	: ["0"]
             		) 
 					input(
@@ -132,10 +134,13 @@ def main(){
                 		,multiple		: false
                 		,required		: true
                 		,type			: "enum"
-                        ,options		: [["-5":"-5°"],["-4":"-4°"],["-3":"-3°"],["-2":"-2°"],["-1":"-1°"],["0":"0°"],["1":"1°"],["2":"2°"],["3":"3°"],["4":"4°"],["5":"5°"]]
+                        //,options		: [["-5":"-5°"],["-4":"-4°"],["-3":"-3°"],["-2":"-2°"],["-1":"-1°"],["0":"0°"],["1":"1°"],["2":"2°"],["3":"3°"],["4":"4°"],["5":"5°"]]
+                        ,options 		: zoneTempOptions()
                         ,defaultValue	: ["0"]
             		)                     
             }
+            //add in update method here for local zone changes if the zone is running, for inputs: submitOnChange = state.running == true
+            //no point in harassing the mobile app unless we need to
 	}
 }
 
@@ -144,6 +149,16 @@ def appProps(){
     	log.debug "appP:${p}"
     }
     return "whatevers..."
+}
+def zoneTempOptions(){
+	def zo
+    if (!state.tempScale) state.tempScale = location.temperatureScale
+	if (state.tempScale == "F"){
+    	zo = [["-5":"-5°F"],["-4":"-4°F"],["-3":"-3°F"],["-2":"-2°F"],["-1":"-1°F"],["0":"0°F"],["1":"1°F"],["2":"2°F"],["3":"3°F"],["4":"4°F"],["5":"5°F"]]
+    } else {
+    	zo = [["-5":"-5°C"],["-4":"-4°C"],["-3":"-3°C"],["-2":"-2°C"],["-1":"-1°C"],["0":"0°C"],["1":"1°C"],["2":"2°C"],["3":"3°C"],["4":"4°C"],["5":"5°C"]]
+    }
+	return zo
 }
 
 def getVentReport(){
@@ -164,18 +179,34 @@ def getVentReport(){
 }
 
 def getAdjustedPressure(evt){
-	//if (state.running){
+	//location.temperatureScale, returns C,F
+	if (state.running){
+    	def vid = evt.deviceId
+        //def dimmer = dimmers.find{it.id == evt.deviceId}
+        def vent = vents.find{it.id == vid}
+        
     	//find start up settings
-    	def s = state."${evt.deviceId}"
-        //log.debug "device:${evt.displayName}, state:${s}"
-        //if (s)
-    //}
+    	def s = state."${vid}"
+        log.debug "vent:${evt.displayName}, start up state:${s}"
+        if (s){
+        	def P1 = s.P.toFloat()
+            def T1 = s.T.toFloat()
+            //def T2 = 
+        	log.debug "initial- P1:${P1}, T1:${T1} event- name:${evt.name} value:${evt.value}"
+            //pressure should be vs what it is...
+            if (evt.name == "pressure"){
+            	def T2 = tempToK(vent.currentValue("temperature").toFloat())
+                log.info "pressure adjusted:${(P1 * T2)/T1}, reported:${evt.value}"
+            }
+        }
+    }
  
 	
 }
 
 def ventHandler(evt){
-	log.info "ventHandler- current zone temp:${evt.floatValue}, running:${state.running}, zone setPoint:${state.setPoint}"
+	//def vo = tempStr(evt.floatValue)
+	log.info "ventHandler- current zone temp:${tempStr(evt.floatValue)}, running:${state.running}, zone setPoint:${tempStr(state.setPoint)}"
     //def T1 = state.T1
     //def P1 = state.P1
     //def T2 = evt.floatValue
@@ -189,11 +220,26 @@ def ventHandler(evt){
         }
     }
 }
+def tempStr(temp){
+    return "${temp.toString()}°${state.tempScale}"
+}
+def tempToK(ct){
+   	def K
+   	if (state.tempScale == "F"){
+		//F to K: [K] = ([°F] + 459.67) × 5⁄9
+        K = ((ct + 459.67) * 5) / 9
+    } else {
+    	//C to K: [K] = [°C] + 273.15
+        K = ct + 273.15
+    }
+	return K        
+}
 
 def systemOn(setPoint,hvacMode){
 	def cTemp = tempSensors.currentValue("temperature")
     vents.each{ vent ->
-		state."${vent.id}" = [P:vent.currentValue("pressure"),T:vent.currentValue("temperature")] 	
+    	def ct = vent.currentValue("temperature").toFloat()
+		state."${vent.id}" = [P:vent.currentValue("pressure"),T:tempToK(ct)] 	
     }
     state.hvacMode = hvacMode
     
@@ -220,14 +266,14 @@ def systemOn(setPoint,hvacMode){
     		log.info "System on, nothing to do, cooling set point already met"
     	}         
     } else {
-    	//something pithy here...
+    	//something pithy here...tempStr(cTemp)
     }
-    log.info "systemOn- mode:${hvacMode}, main setPoint:${setPoint}, zone setPoint:${state.setPoint}, current zone temp:${cTemp}"
+    log.info "systemOn- mode:${hvacMode}, main setPoint:${tempStr(setPoint)}, zone setPoint:${tempStr(state.setPoint)}, current zone temp:${tempStr(cTemp)}, vent levels:${vents.currentValue("level")}"
      
 }
 
 def systemOff(){
-	log.info "systemOff"
+	log.info "systemOff: vent levels:${vents.currentValue("level")}"
 	state.running = false
 }
 
