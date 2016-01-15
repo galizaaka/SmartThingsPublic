@@ -1,5 +1,5 @@
 /**
- *  kvParent
+ *  kvParent 0.0.3
  *
  *  Copyright 2015 Mike Maxwell
  *
@@ -40,6 +40,9 @@ def updated() {
 def initialize() {
     subscribe(tStat, "thermostatOperatingState", notifyZones)
     subscribe(tStat, "thermostatSetpoint", notifyZones)
+    
+ 
+    
     //subscribe(tStat, "thermostatHeatingSetpoint", setPointHandeler)
     /*
     state.runMaps = []
@@ -90,26 +93,35 @@ def main(){
 }
 
 def notifyZones(evt){
-	log.debug "notifyZones- value:${evt.value}, description:${evt.descriptionText}"
-    
+	//log.debug "notifyZones- name:${evt.name} value:${evt.value} , description:${evt.descriptionText}"
+    def setPoint
 	def state = tStat.currentValue("thermostatOperatingState")
-   	def setPoint 
     
-	if (state == "heating" || state == "cooling"){
-    	if (state == "heating"){
-        	setPoint = tStat.currentValue("heatingSetpoint")
-        } else {
-        	setPoint = tStat.currentValue("coolingSetpoint")
-        }
+    if (state == "heating"){
+    	setPoint = tStat.currentValue("heatingSetpoint").toInteger()
+    } else if (state == "cooling"){
+    	setPoint = tStat.currentValue("coolingSetpoint").toInteger()
+    }
+    
+	if (evt.name == "thermostatOperatingState"){
+		if (state == "heating" || state == "cooling"){
+            log.info "notifying children of system operating state change..."
+        	childApps.each {child ->
+        		child.systemOn(setPoint,state)    
+    		}
+    	} else if (state == "idle"){
+    		childApps.each {child ->
+        		child.systemOff()
+    		}
+    	} else {
+    		log.info "notifyZones- ignored:${state}"
+    	}
+    } else if (state == "heating" || state == "cooling"){
+        //updateZoneSetpoint()
+        log.info "notifying children of main set point change..."
         childApps.each {child ->
-        	child.systemOn(setPoint,state)    
+        		child.systemOn(setPoint,state)
     	}
-    } else if (state == "idle"){
-    	childApps.each {child ->
-        	child.systemOff()
-    	}
-    } else {
-    	log.info "notifyZones- ignored:${state}"
     }
 }
 
