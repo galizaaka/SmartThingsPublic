@@ -152,10 +152,14 @@ def main(){
 	}
 }
 
+def getZoneConfig(){
+	return "\n\tKeen vents in this Zone:${vents}\n\tTemp Sensors:${tempSensors}\n\tMinimum vent opening:${minVo}\n\tMaximum vent opening:${maxVo}\n\tZone heating offset:${heatOffset}\n\tZone cooling offset:${coolOffset}%"
+}
+
 def getZoneState(){
 	//"mode:${state.hvacMode}, main setPoint:${tempStr(state.mainSetPoint)}, zone setPoint:${tempStr(state.setPoint)}, current zone temp:${tempStr(tempSensors.currentValue("temperature"))}, vent levels:${vents.currentValue("level")}%"
 	//return app.label
-    return "\n\tmode:${state.hvacMode}\n\tmain setPoint:${tempStr(state.mainSetPoint)}\n\tzone setPoint:${tempStr(state.setPoint)}\n\tcurrent zone temp:${tempStr(tempSensors.currentValue("temperature"))}\n\tvent levels:${vents.currentValue("level")}%"
+    return "\n\tmain mode:${state.hvacMode}\n\tmain setPoint:${tempStr(state.mainSetPoint)}\n\tzone active:${state.running}\n\tzone setPoint:${tempStr(state.setPoint)}\n\tcurrent zone temp:${tempStr(tempSensors.currentValue("temperature"))}\n\tvent levels:${vents.currentValue("level")}%"
 }
 def appProps(){
 	app.properties.each{ p ->

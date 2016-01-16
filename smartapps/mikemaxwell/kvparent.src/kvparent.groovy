@@ -111,15 +111,13 @@ def reporting(){
         ,uninstall	: false
         ){
     		section(){
-            	/*
-            	report = "Zone Target"
+            	report = "Zone Configuration"
    				href( "report"
 					,title		: report
 					,description: ""
 					,state		: null
 					,params		: [rptName:report]
 				) 
-                */
                 report = "Zone States"
                 href( "report"
 					,title		: report
@@ -149,7 +147,9 @@ def getReport(rptName){
 	def cMethod
     def reports = ""
     //def report
+    //getZoneConfig()
 	if (rptName == "Zone States") cMethod = "getZoneState"
+    if (rptName == "Zone Configuration") cMethod = "getZoneConfig"
     //def sortedApps = childApps.sort()
 	childApps.each{child ->
     	def report = child."${cMethod}"()
