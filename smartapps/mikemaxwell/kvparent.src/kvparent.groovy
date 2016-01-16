@@ -1,5 +1,5 @@
 /**
- *  kvParent 0.0.3
+ *  kvParent 0.0.4
  *
  *  Copyright 2015 Mike Maxwell
  *
@@ -26,7 +26,8 @@ definition(
 
 preferences {
 	page(name: "main")
-    //page(name: "triggers", nextPage	: "main")
+    page(name: "reporting")
+    page(name: "report")
 }
 def installed() {
 	log.debug "Installed with settings: ${settings}"
@@ -71,7 +72,7 @@ def main(){
         ,install	: true
         ,uninstall	: installed
         ){
-		     section(){
+		     section("Main Configuration"){
              		app(name: "childZones", appName: "kvChild", namespace: "MikeMaxwell", title: "Create New Vent Zone...", multiple: true)
                    	input(
                         name		: "tStat"
@@ -89,8 +90,76 @@ def main(){
             		) 
                     
             }
+            if (installed){
+            	section("Reporting"){
+         			href( "reporting"
+						,title		: "Available reports..."
+						,description: ""
+						,state		: null
+						//,params		: [method:"addCommand",title:"Add Command"]
+					)                
+                }
+            }
 	}
 }
+def reporting(){
+	def report
+	return dynamicPage(
+    	name		: "reporting"
+        ,title		: "Available reports"
+        ,install	: false
+        ,uninstall	: false
+        ){
+    		section(){
+            	/*
+            	report = "Zone Target"
+   				href( "report"
+					,title		: report
+					,description: ""
+					,state		: null
+					,params		: [rptName:report]
+				) 
+                */
+                report = "Zone States"
+                href( "report"
+					,title		: report
+					,description: ""
+					,state		: null
+					,params		: [rptName:report]
+				)   
+            }
+   }
+}
+
+def report(params){
+	def reportName = params.rptName
+	return dynamicPage(
+    	name		: "report"
+        ,title		: reportName
+        ,install	: false
+        ,uninstall	: false
+        ){
+    		section(){
+   				paragraph(getReport(reportName))
+            }
+   }
+}
+
+def getReport(rptName){
+	def cMethod
+    def reports = ""
+    //def report
+	if (rptName == "Zone States") cMethod = "getZoneState"
+    //def sortedApps = childApps.sort()
+	childApps.each{child ->
+    	def report = child."${cMethod}"()
+        //def report = child.name
+        reports = reports + child.label + ":${report}" + "\n"
+    }
+    
+    return reports
+}
+
 
 def notifyZones(evt){
 	//log.debug "notifyZones- name:${evt.name} value:${evt.value} , description:${evt.descriptionText}"

@@ -1,6 +1,7 @@
 /**
- *  kvChild 0.0.3
+ *  kvChild 0.0.4
  		
+    0.0.4	basic reporting
     0.0.3 	added dynamic zone change support while system is running
     		added support for main set point updates while system is running
     0.0.2	added F/C unit detection and display
@@ -151,6 +152,11 @@ def main(){
 	}
 }
 
+def getZoneState(){
+	//"mode:${state.hvacMode}, main setPoint:${tempStr(state.mainSetPoint)}, zone setPoint:${tempStr(state.setPoint)}, current zone temp:${tempStr(tempSensors.currentValue("temperature"))}, vent levels:${vents.currentValue("level")}%"
+	//return app.label
+    return "\n\tmode:${state.hvacMode}\n\tmain setPoint:${tempStr(state.mainSetPoint)}\n\tzone setPoint:${tempStr(state.setPoint)}\n\tcurrent zone temp:${tempStr(tempSensors.currentValue("temperature"))}\n\tvent levels:${vents.currentValue("level")}%"
+}
 def appProps(){
 	app.properties.each{ p ->
     	log.debug "appP:${p}"
