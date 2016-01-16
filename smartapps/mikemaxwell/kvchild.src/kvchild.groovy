@@ -153,7 +153,7 @@ def main(){
 }
 
 def getZoneConfig(){
-	return "\n\tKeen vents in this Zone:${vents}\n\tTemp Sensors:${tempSensors}\n\tMinimum vent opening:${minVo}\n\tMaximum vent opening:${maxVo}\n\tZone heating offset:${heatOffset}\n\tZone cooling offset:${coolOffset}%"
+	return "\n\tKeen vents in this Zone:${vents}\n\tTemp Sensors:${tempSensors}\n\tMinimum vent opening:${minVo}%\n\tMaximum vent opening:${maxVo}%\n\tZone heating offset:${tempStr(heatOffset)}\n\tZone cooling offset:${tempStr(coolOffset)}"
 }
 
 def getZoneState(){
