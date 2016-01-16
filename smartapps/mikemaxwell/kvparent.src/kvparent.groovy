@@ -1,5 +1,5 @@
 /**
- *  kvParent 0.0.4
+ *  kvParent 0.0.5
  *
  *  Copyright 2015 Mike Maxwell
  *
@@ -15,11 +15,11 @@
  */
  
 definition(
-    name: "kvParent",
-    namespace: "MikeMaxwell",
-    author: "Mike Maxwell",
-    description: "parent application for 'Keen Vent Manager'",
-    category: "My Apps",
+    name		: "kvParent",
+    namespace	: "MikeMaxwell",
+    author		: "Mike Maxwell",
+    description	: "parent application for 'Keen Vent Manager'",
+    category	: "My Apps",
     iconUrl		: "https://s3.amazonaws.com/smartapp-icons/Developers/whole-house-fan.png",
     iconX2Url	: "https://s3.amazonaws.com/smartapp-icons/Developers/whole-house-fan@2x.png"
 )
@@ -41,9 +41,7 @@ def updated() {
 def initialize() {
     subscribe(tStat, "thermostatOperatingState", notifyZones)
     subscribe(tStat, "thermostatSetpoint", notifyZones)
-    
- 
-    
+   	//state.setPoint = null
     //subscribe(tStat, "thermostatHeatingSetpoint", setPointHandeler)
     /*
     state.runMaps = []
@@ -75,18 +73,21 @@ def main(){
 		     section("Main Configuration"){
              		app(name: "childZones", appName: "kvChild", namespace: "MikeMaxwell", title: "Create New Vent Zone...", multiple: true)
                    	input(
-                        name		: "tStat"
-                        ,title		: "Main Thermostat"
-                        ,multiple	: false
-                        ,required	: true
-                        ,type		: "capability.thermostat"
+                        name			: "tStat"
+                        ,title			: "Main Thermostat"
+                        ,multiple		: false
+                        ,required		: true
+                        ,type			: "capability.thermostat"
+                        //,submitOnChange	: true
                     )
 					input(
-            			name		: "tempSensors"
-                		,title		: "Thermostat temperature sensor:"
-                		,multiple	: false
-                		,required	: true
-                		,type		: "capability.temperatureMeasurement"
+            			name			: "tempSensors"
+                		,title			: "Thermostat temperature sensor:"
+                		,multiple		: false
+                		,required		: true
+                		,type			: "capability.temperatureMeasurement"
+                        //,submitOnChange	: true
+                        //,defaultValue	: getSelectedDevices(tStat)
             		) 
                     
             }
@@ -106,25 +107,32 @@ def reporting(){
 	def report
 	return dynamicPage(
     	name		: "reporting"
-        ,title		: "Available reports"
+        ,title		: "Available zone reports"
         ,install	: false
         ,uninstall	: false
         ){
     		section(){
-            	report = "Zone Configuration"
+            	report = "Configuration"
    				href( "report"
 					,title		: report
 					,description: ""
 					,state		: null
 					,params		: [rptName:report]
 				) 
-                report = "Zone States"
+                report = "Current state"
                 href( "report"
 					,title		: report
 					,description: ""
 					,state		: null
 					,params		: [rptName:report]
 				)   
+                report = "Last results"
+                href( "report"
+					,title		: report
+					,description: ""
+					,state		: null
+					,params		: [rptName:report]
+				)  
             }
    }
 }
@@ -148,48 +156,61 @@ def getReport(rptName){
     def reports = ""
     //def report
     //getZoneConfig()
-	if (rptName == "Zone States") cMethod = "getZoneState"
-    if (rptName == "Zone Configuration") cMethod = "getZoneConfig"
-    //def sortedApps = childApps.sort()
-	childApps.each{child ->
+    //getEndReport
+	if (rptName == "Current state"){
+    	cMethod = "getZoneState"
+        def os = tStat.currentValue("thermostatOperatingState") ?: "No data available yet."
+        def t = tempSensors.currentValue("temperature")
+        //def sp = state.setPoint ?: "No data available yet."
+        //log.info "sp:${sp}"
+        //if (state.setPoint.isNumber()){
+        //	sp = "\n\tset point: ${tempStr(state.setPoint)}"
+        //}
+        reports = "Main system:\n\tmode: ${os}\n\tset point: ${tempStr(state.setPoint)}\n\tcurrent temp: ${tempStr(t)}\n\n"
+    }
+    if (rptName == "Configuration") cMethod = "getZoneConfig"
+    if (rptName == "Last results") cMethod = "getEndReport"
+    def sorted = childApps.sort{it.label}
+    sorted.each{ child ->
     	def report = child."${cMethod}"()
-        //def report = child.name
         reports = reports + child.label + ":${report}" + "\n"
     }
-    
     return reports
 }
 
 
 def notifyZones(evt){
 	//log.debug "notifyZones- name:${evt.name} value:${evt.value} , description:${evt.descriptionText}"
-    def setPoint
-	def state = tStat.currentValue("thermostatOperatingState")
+    def sp
+	def os = tStat.currentValue("thermostatOperatingState")
     
-    if (state == "heating"){
-    	setPoint = tStat.currentValue("heatingSetpoint").toInteger()
-    } else if (state == "cooling"){
-    	setPoint = tStat.currentValue("coolingSetpoint").toInteger()
+    if (os == "heating"){
+    	sp = tStat.currentValue("heatingSetpoint").toInteger()
+        state.setPoint = sp
+    } else if (os == "cooling"){
+    	sp = tStat.currentValue("coolingSetpoint").toInteger()
+        state.setPoint = sp
     }
     
+    
 	if (evt.name == "thermostatOperatingState"){
-		if (state == "heating" || state == "cooling"){
+		if (os == "heating" || os == "cooling"){
             log.info "notifying children of system operating state change..."
         	childApps.each {child ->
-        		child.systemOn(setPoint,state)    
+        		child.systemOn(sp,os)    
     		}
-    	} else if (state == "idle"){
+    	} else if (os == "idle"){
     		childApps.each {child ->
         		child.systemOff()
     		}
     	} else {
-    		log.info "notifyZones- ignored:${state}"
+    		log.info "notifyZones- ignored:${os}"
     	}
-    } else if (state == "heating" || state == "cooling"){
+    } else if (os == "heating" || os == "cooling"){
         //updateZoneSetpoint()
         log.info "notifying children of main set point change..."
         childApps.each {child ->
-        		child.systemOn(setPoint,state)
+        		child.systemOn(sp,os)
     	}
     }
 }
@@ -245,8 +266,16 @@ def statHandler(evt){
         
     }
 }
-/*
-       if (cmdMaps) cmdMaps.put((nextIDX),cmd)
-        else state.customCommands = [(nextIDX):cmd]
-*/
 
+def tempStr(temp){
+    def tc = state.tempScale ?: location.temperatureScale
+    if (temp) return "${temp.toString()}°${tc}"
+    else return "No data available yet."
+}
+def getSelectedDevices(deviceList){
+	def deviceIDS = []
+    deviceList.each{ device ->
+    	deviceIDS.add(device.id)
+    }
+	return deviceIDS
+}
