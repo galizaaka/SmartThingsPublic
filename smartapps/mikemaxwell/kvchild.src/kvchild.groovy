@@ -1,7 +1,8 @@
 /**
- *  kvChild 0.0.5
+ *  kvChild 0.0.6
  	
-    0.0.5	
+    0.0.6	added options on what to do when the zone is disabled...
+    0.0.5	added disable switch option
     0.0.4	basic reporting
     0.0.3 	added dynamic zone change support while system is running
     		added support for main set point updates while system is running
@@ -50,6 +51,8 @@ def initialize() {
     subscribe(tempSensors, "temperature", ventHandler)
     subscribe(vents, "pressure", getAdjustedPressure)
     subscribe(vents, "temperature", getAdjustedPressure)
+    //subscribe(zoneControlSwitch,"switch",
+    //capability.switch
 }
 
 //dynamic page methods
@@ -106,7 +109,7 @@ def main(){
                 		,multiple		: false
                 		,required		: true
                 		,type			: "enum"
-                        ,options		: [["0":"0%"],["5":"5%"],["10":"10%"],["15":"15%"],["20":"20%"],["25":"25%"],["30":"30%"]]
+                        ,options		: minVoptions()
                         ,defaultValue	: ["20"]
                         ,submitOnChange	: soc
             		) 
@@ -116,7 +119,7 @@ def main(){
                 		,multiple		: false
                 		,required		: true
                 		,type			: "enum"
-                        ,options		: [["50":"50%"],["55":"55%"],["60":"60%"],["65":"65%"],["70":"70%"],["80":"80%"],["100":"100%"]]
+                        ,options		: [["35":"35%"],["40":"40%"],["45":"45%"],["50":"50%"],["55":"55%"],["60":"60%"],["65":"65%"],["70":"70%"],["80":"80%"],["100":"Fully open"]]
                         ,defaultValue	: ["100"]
                         ,submitOnChange	: soc
             		) 
@@ -142,16 +145,35 @@ def main(){
             		)    
                     input(
             			name			: "zoneControlSwitch"
-                		,title			: "Optional zone control\non=enable management\noff=disable management"
+                		,title			: "Optional zone disable switch\n(on=enable management)\n(off=disable management)"
                 		,multiple		: false
                 		,required		: false
                 		,type			: "capability.switch"
-                        ,submitOnChange	: false
-            		)   
+                        ,submitOnChange	: true
+            		)  
+                    if (zoneControlSwitch){
+                    	def zcsTitle = zoneInactiveOptions ? "When zone changes to off, set vent opening to:" : "When zone changes to off, vent opening will not be changed"
+                    	input(
+            				name			: "zoneInactiveOptions"
+                			,title			: zcsTitle
+                			,multiple		: false
+                			,required		: false
+                			,type			: "enum"
+                        	,options		: minVoptions()
+                        	,submitOnChange	: true
+                            //,defaultValue	: "${minVo}"
+            			)
+                    }
             }
+            //clean this up later...
+            if (zoneControlSwitch) state.zoneControlActive = zoneControlSwitch.currentValue("switch") == "on"
+    		else state.zoneControlActive = true
             //no point in harassing the mobile app or the vents unless we need to
             if (soc == true) systemOn(state.mainSetPoint,state.hvacMode)
 	}
+}
+def minVoptions(){
+	return [["0":"Fully closed"],["5":"5%"],["10":"10%"],["15":"15%"],["20":"20%"],["25":"25%"],["30":"30%"]]
 }
 
 def zoneTempOptions(){
@@ -178,8 +200,9 @@ def getZoneConfig(){
 }
 
 def getZoneState(){
-    def s = state.running ?: "No data available yet."
-    //if (zoneControlSwitch) zc = "[${zoneControlSwitch.displayName}] is ${zoneControlSwitch.currentValue("switch")}"
+    def s 
+    if (state.running == true) s = true
+    else s = false
     return "\n\trunning: ${s}\n\tset point: ${tempStr(state.setPoint)}\n\tcurrent temp: ${tempStr(tempSensors.currentValue("temperature"))}\n\tvent levels: ${vents.currentValue("level")}%"
 }
 
@@ -265,7 +288,13 @@ def systemOff(){
     	state.endReport = "\n\tset point: ${tempStr(zsp)}\n\tend temp: ${tempStr(ct)}\n\tvariance: ${tempStr(d)}\n\tvent levels: ${vents.currentValue("level")}%"
     	state.hvacMode = "idle"
     } else {
-    	log.info "systemOff- , zone deactived via zone control switch"
+    	//log.info "systemOff- , zone is via zone control switch"
+        if (zoneInactiveOptions) {
+        	log.info "systemOff- , zone is deactived via zone control switch, setting vents to:${zoneInactiveOptions}"
+            vents.setLevel(zoneInactiveOptions.toInteger())
+        } else {
+        	log.info "systemOff- , zone is deactived via zone control switch"
+        }
     }
     
 }
