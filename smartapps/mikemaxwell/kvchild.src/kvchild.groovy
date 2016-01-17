@@ -418,10 +418,10 @@ def getAdjustedPressure(evt){
             if (evt.name == "pressure"){
             	def TM = evt.value //String
                 //log.debug "vent classs- temp:${c.getClass()}, pressure:${p.getClass()}"
-                log.debug "vent event class"
-                try{
-                	log.debug "vent event class- pressure:${TM.getClass()}"
-                } catch(e){ log.debug e }
+                //log.debug "vent event class"
+                //try{
+                //	log.debug "vent event class- pressure:${TM.getClass()}"
+                //} catch(e){ log.debug e }
                 //try{
                 //	log.debug "vent event class- pressure:${TM.getClass()}"
                 //} catch(e){ log.debug e }

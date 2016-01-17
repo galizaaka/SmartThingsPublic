@@ -3,13 +3,17 @@
  *
  *  Copyright 2015 Bruce Ravenel and Mike Maxwell
  *
- *  Version 1.6.1   23 Dec 2015
+ *  Version 1.6.6   10 Jan 2016
  *
  *	Version History
- *	
- *  1.6.2	24 Dec 2015		null parameter value patch in expert, maxwell
+ *
+ *	1.6.6	10 Jan 2016		Improved method of getting custom device commands
+ *	1.6.5	1 Jan 2016		Added version numbers to main page
+ *	1.6.4	30 Dec 2015		Multi-commands
+ *	1.6.3	26 Dec 2015		UI improvements and icon per Michael Struck
+ *	1.6.2	25 Dec 2015		null parameter value patch in expert, maxwell
  *	1.6.1	24 Dec 2015		UI improvement
- *	1.6		23 Dec 2015		Added expert commands per Mike Maxwell
+ *	1.6	23 Dec 2015		Added expert commands per Mike Maxwell
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -23,20 +27,20 @@
  */
 
 definition(
-    name: "Rule Machine",
-    singleInstance: true,
-    namespace: "bravenel",
-    author: "Bruce Ravenel and Mike Maxwell",
-    description: "Rule Machine",
-    category: "My Apps",
-  	iconUrl: "https://s3.amazonaws.com/smartapp-icons/ModeMagic/Cat-ModeMagic.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/ModeMagic/Cat-ModeMagic@2x.png",
-    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/ModeMagic/Cat-ModeMagic@3x.png"
+	name: "Rule Machine",
+	singleInstance: true,
+	namespace: "bravenel",
+	author: "Bruce Ravenel and Mike Maxwell",
+	description: "Rule Machine",
+	category: "My Apps",
+	iconUrl: "https://raw.githubusercontent.com/bravenel/Rule-Trigger/master/smartapps/bravenel/RuleMachine.png",
+	iconX2Url: "https://raw.githubusercontent.com/bravenel/Rule-Trigger/master/smartapps/bravenel/RuleMachine%402x.png",
+	iconX3Url: "https://raw.githubusercontent.com/bravenel/Rule-Trigger/master/smartapps/bravenel/RuleMachine%402x.png"
 )
 
 preferences {
 	page(name: "mainPage")
-    page(name: "removePage")
+	page(name: "removePage")
 	//expert pages
 	page(name: "expert")
 	page(name: "generalApprovalPAGE")
@@ -46,23 +50,24 @@ preferences {
 }
 
 def mainPage() {
-    dynamicPage(name: "mainPage", title: "Rules and Triggers", install: true, uninstall: false, submitOnChange: true) {
+    dynamicPage(name: "mainPage", title: "Installed Rules", install: true, uninstall: false, submitOnChange: true) {
     	if(!state.setup) initialize(true)
         section {
             app(name: "childRules", appName: "Rule", namespace: "bravenel", title: "Create New Rule...", multiple: true)
         }
-		section {
-			href( "expert", title: "", description: "Expert Features", state: "")
+	section ("Expert Features") {
+		href( "expert", title: "", description: "Tap to create custom commands", state: "")
         }
-        section {
-        	href "removePage", description: "Remove Rule Machine", title: ""
+        section ("Remove Rule Machine"){
+        	href "removePage", description: "Tap to remove Rule Machine ", title: ""
         }
+        if(state.ver) section ("Version 1.6.6/" + state.ver) { }
     }
 }
 
 def removePage() {
-	dynamicPage(name: "removePage", title: "Remove Rule Machine", install: false, uninstall: true) {
-    	section ("WARNING! Removing Rule Machine also removes all Rules") {
+	dynamicPage(name: "removePage", title: "Remove Rule Machine And All Rules", install: false, uninstall: true) {
+    	section ("WARNING!\n\nRemoving Rule Machine also removes all Rules\n") {
         }
     }
 }
@@ -78,31 +83,31 @@ def updated() {
 def initialize(first) {
 	if(first) {
 		state.ruleState = [:]
-    	state.ruleSubscribers = [:]
-    }
-    childApps.each {child ->
+    		state.ruleSubscribers = [:]
+	}
+	childApps.each {child ->
 		if(child.name == "Rule") {
 			log.info "Installed Rules and Triggers: ${child.label}"
-            if(first) {
+			if(first) {
 				state.ruleState[child.label] = null
 				state.ruleSubscribers[child.label] = [:]
-            }
+			}
 		} 
-    }
-    state.setup = true
+	}
+	state.setup = true
 }
 
 def ruleList(appLabel) {
 	def result = []
-    childApps.each { child ->
-    	if(child.name == "Rule" && child.label != appLabel && state.ruleState[child.label] != null) result << child.label
-    }
-    return result
+	childApps.each { child ->
+		if(child.name == "Rule" && child.label != appLabel && state.ruleState[child.label] != null) result << child.label
+	}
+	return result
 }
 
 def subscribeRule(appLabel, ruleName, ruleTruth, childMethod) {
 //	log.debug "subscribe: $appLabel, $ruleName, $ruleTruth, $childMethod"
-    ruleName.each {name ->
+	ruleName.each {name ->
     	state.ruleSubscribers[name].each {if(it == appLabel) return}
         if(state.ruleSubscribers[name] == null) state.ruleSubscribers[name] = ["$appLabel":ruleTruth]
     	else state.ruleSubscribers[name] << ["$appLabel":ruleTruth]
@@ -111,15 +116,15 @@ def subscribeRule(appLabel, ruleName, ruleTruth, childMethod) {
 
 def setRuleTruth(appLabel, ruleTruth) {
 //	log.debug "setRuleTruth1: $appLabel, $ruleTruth"
-    state.ruleState[appLabel] = ruleTruth
-    def thisList = state.ruleSubscribers[appLabel]
-    thisList.each {
-        if(it.value == null || "$it.value" == "$ruleTruth") {
-    		childApps.each { child ->
-    			if(child.label == it.key) child.ruleHandler(appLabel, ruleTruth)
-    		}
-        }
-    }
+	state.ruleState[appLabel] = ruleTruth
+	def thisList = state.ruleSubscribers[appLabel]
+	thisList.each {
+		if(it.value == null || "$it.value" == "$ruleTruth") {
+			childApps.each { child ->
+				if(child.label == it.key) child.ruleHandler(appLabel, ruleTruth)
+			}
+		}
+	}
 }
 
 def currentRule(appLabel) {
@@ -133,14 +138,14 @@ def childUninstalled() {
 
 def removeChild(appLabel) {
 //	log.debug "removeChild: $appLabel"
-    unSubscribeRule(appLabel)
-    if(state.ruleState[appLabel] != null) state.ruleState.remove(appLabel)
-    if(state.ruleSubscribers[appLabel] != null) state.ruleSubscribers.remove(appLabel)
+	unSubscribeRule(appLabel)
+	if(state.ruleState[appLabel] != null) state.ruleState.remove(appLabel)
+	if(state.ruleSubscribers[appLabel] != null) state.ruleSubscribers.remove(appLabel)
 }
 
 def unSubscribeRule(appLabel) {
 //	log.debug "unSubscribeRule: $appLabel"
-    state.ruleSubscribers.each { rule ->
+	state.ruleSubscribers.each { rule ->
         def newList = [:]
         rule.value.each {list ->
         	if(list.key != appLabel) newList << list
@@ -151,24 +156,18 @@ def unSubscribeRule(appLabel) {
 
 def runRule(rule, appLabel) {
 //	log.debug "runRule: $rule, $appLabel"
-    childApps.each { child ->
-    	rule.each {
-    		if(child.label == it) child.ruleEvaluator(appLabel)
-        }
-    }
+	childApps.each { child ->
+		rule.each {
+			if(child.label == it) child.ruleEvaluator(appLabel)
+		}
+	}
 }
 
 /*****custom command specific pages	*****/
 def expert(){
 	dynamicPage(name: "expert", title: "Expert Features", uninstall: false, install: false) {
 		section(){
-			paragraph 	"Custom commands allows Rules to control devices with custom capabilities.\n" +
-						"Dual dimmers and switches, ThingShields, FGBW controllers or any device you might build a " +
-						"custom smartApp to utilize.\n" +
-						"Custom commands that are created and saved here will become available for use in any new " +
-						"or existing rules.\n" +
-						"After saving at least one command, look for 'Run custom device command' in your 'Select " +
-						"Actions'  sections."
+			paragraph "${expertText()}"
 			//expert hrefs...
 			href( "customCommandsPAGE"
 				,title		: "Configure Custom Commands..."
@@ -287,7 +286,7 @@ def addCustomCommandPAGE(){
 		if (test){
 			def result = execTestCommand()
 			section("Configured command: ${cmdLabel}\n${result}"){
-				if (result == "suceeded"){
+				if (result == "succeeded"){
 					if (!commandExists(cmdLabel)){
 						href( "generalApprovalPAGE"
 							,title		: "Save command now"
@@ -377,6 +376,7 @@ def getPvalue(myPtype, n){
 	}
 	return result
 }
+
 def getCmdLabel(){
 	def cmd
 	if (settings.cCmd) cmd = settings.cCmd.value
@@ -387,30 +387,38 @@ def getCmdLabel(){
 		if (cpTypes.size() == 0){
 			result = result + ")"
 		} else {
-			result = "${result}${getParams(cpTypes)})"
+        	def r = getParams(cpTypes)
+            if (r == "") result = r
+            else result = "${result}${r})"
 		}
 	}
 	return result
 }
+
 def getParams(cpTypes){
 	def result = ""
+	def cpValue
+	def badParam = false
 	cpTypes.each{ cpType ->
 		def i = cpType.key.replaceAll("cpType_","")
 		def cpVal = settings.find{it.key == "cpVal_${i}"}
-        def cpValue
-		if (cpVal) cpValue = cpVal.value
-        else cpValue = "missing value"
-  		if (cpType.value == "string"){
-   			result = result + "'${cpValue}'," 
-   		} else {
-			if (cpValue.isNumber()){
-				result = result + "${cpValue}," 
+		if (cpVal){
+			cpValue = cpVal.value
+			if (cpType.value == "string"){
+				result = result + "'${cpValue}'," 
 			} else {
-				result = result + "[${cpValue}]: is not a number,"
+				if (cpValue.isNumber()){
+					result = result + "${cpValue}," 
+				} else {
+					result = result + "[${cpValue}]: is not a number,"
+				}
 			}
+		} else {
+			badParam = true
 		}
-  	}
-	result = result[0..-2]   
+	}
+	if (badParam) result = ""
+	else result = result[0..-2]   
 	return result
 }
 
@@ -421,7 +429,7 @@ def parameterLabel(){
 		for (int i = 1; i <= howMany; i++) {
 			result = result + parameterLabelN(i) + "\n"
 		}
-       result = result[0..-2]
+		result = result[0..-2]
 	}
 	return result
 }
@@ -430,14 +438,15 @@ def parameterLabelN(i){
 	def result = ""
 	def cpType = settings.find{it.key == "cpType_${i}"}
 	def cpVal = settings.find{it.key == "cpVal_${i}"}
-    def cpValue
+	def cpValue
 	if (cpVal) cpValue = cpVal.value
-    else cpValue = "missing value"
+	else cpValue = "missing value"
 	if (cpType){
 		result = "p${i} - type:${cpType.value}, value:${cpValue}"
 	} 
 	return result
 }
+
 def getParamsAsList(cpTypes){
 	def result = []
 	cpTypes.each{ cpType ->
@@ -457,6 +466,7 @@ def getParamsAsList(cpTypes){
 	}
 	return result
 }
+
 def getCommands(){
 	def result = [] 
 	def cmdMaps = state.customCommands ?: []
@@ -528,8 +538,7 @@ def execTestCommand(){
 	devices.each { device ->
 		try {
 			device."${cCmd}"(p)
-			//log.info "${device.displayName}: command succeeded"
-			result = "suceeded"
+			result = "succeeded"
 		}
 		catch (IllegalArgumentException e){
 			def em = e as String
@@ -537,6 +546,9 @@ def execTestCommand(){
 			ems = ems[2].replace(" [","").replace("]","")
 			ems = ems.replaceAll(", ","\n")
 			result = "failed, valid commands:\n${ems}"
+		}
+		catch (e){
+			result = "failed with:\n${e}"
 		}
 	}
 	return result
@@ -571,6 +583,9 @@ def execCommand(cmdID){
 					ems = ems.replaceAll(", ","\n")
 					result = "Command failed, valid commands:\n${ems}"
 				}
+				catch (e){
+					result = "failed with:\n${e}"
+				}
 			}
 			return result
 		}
@@ -580,21 +595,22 @@ def execCommand(cmdID){
 def getDeviceCommands(){
 	def result = ""
 	devices.each { device ->
-		try {
-			device."xxx"()
-			result = "Command succeeded"
-		}
-		catch (IllegalArgumentException e){
-			def em = e as String
-			def ems = em.split(":")
-			ems = ems[2].replace(" [","").replace("]","")
-			result = ems.split(", ").collect{it as String}
-		}
+        result = device.supportedCommands.collect{ it as String }
+        //log.debug "supportedCommands:${result}"
 	}
 	return result
 }
 
-def isExpert(){
-	return getCommands()
+def isExpert(ver){
+	state.ver = ver
+	return getCommands().size() > 0
 }
 
+def expertText() {
+	def text = 
+		"Custom commands allows Rule Machine to control devices with custom capabilities. " +
+		"This includes dual dimmers and switches, ThingShields, FGBW controllers or any device you might build a " +
+		"custom SmartApp to utilize.\n\nCustom commands that are created and saved here will become available for use " +
+		"in any new or existing rules.\n\nAfter saving at least one command, look for 'Run custom device command' in your " + 
+		"'Select Actions' sections."
+}
