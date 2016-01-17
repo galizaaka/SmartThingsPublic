@@ -1,9 +1,8 @@
 /**
- *  kvChild 0.0.6a
+ *  kvChild 0.0.7
  
- 	0.0.7	added Now, On next Start up, On next cycle end for disable vent closure
-    		added app version info on parent
-            fixed 
+ 	0.0.7	fixed bug, zone not restarting
+    		added app version info on the bottom of the parent page
     0.0.6a	added interim debugging
     0.0.6	added options on what to do when the zone is disabled...
     0.0.5	added disable switch option
@@ -52,11 +51,13 @@ def updated() {
 }
 
 def initialize() {
+	state.vChild = "0.0.7"
+    parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", ventHandler)
     subscribe(vents, "pressure", getAdjustedPressure)
     subscribe(vents, "temperature", getAdjustedPressure)
-    //subscribe(zoneControlSwitch,"switch",
-    //capability.switch
+    
+    subscribe(zoneControlSwitch,"switch",zoneDisableHandeler)
 }
 
 //dynamic page methods
@@ -179,7 +180,7 @@ def main(){
                 			,multiple		: false
                 			,required		: false
                 			,type			: "enum"
-                       		,options		: [["start":"at next cycle start"],["end":"at next cycle end"],["immediatly":"immediatly"]]
+                       		,options		: [["start":"at next cycle start"],["end":"at next cycle end"],["now":"immediately"]]
                        		,submitOnChange	: true
                            	,defaultValue	: "end"
             			)                        
@@ -188,8 +189,9 @@ def main(){
                 }
             }
             //clean this up later...
-            if (zoneControlSwitch) state.zoneControlActive = zoneControlSwitch.currentValue("switch") == "on"
-    		else state.zoneControlActive = true
+            //if (zoneControlSwitch) state.zoneControlActive = zoneControlSwitch.currentValue("switch") == "on"
+    		//else state.zoneControlActive = true
+            
             //no point in harassing the mobile app or the vents unless we need to
             if (soc == true) systemOn(state.mainSetPoint,state.hvacMode)
 	}
@@ -218,7 +220,7 @@ def getZoneConfig(){
 	//zoneControlSwitch
     def zc = "Not Activated" 
     if (zoneControlSwitch) zc = "is ${zoneControlSwitch.currentValue("switch")} via [${zoneControlSwitch.displayName}]"
-	return "\n\tKeen vents: ${vents}\n\tTemp Sensors: [${tempSensors}]\n\tMinimum vent opening: ${minVo}%\n\tMaximum vent opening: ${maxVo}%\n\tHeating offset: ${tempStr(heatOffset)}\n\tCooling offset: ${tempStr(coolOffset)}\n\tZone control: ${zc}"
+	return "\n\tKeen vents: ${vents}\n\tTemp Sensors: [${tempSensors}]\n\tMinimum vent opening: ${minVo}%\n\tMaximum vent opening: ${maxVo}%\n\tHeating offset: ${tempStr(heatOffset)}\n\tCooling offset: ${tempStr(coolOffset)}\n\tZone control: ${zc}\n\tVersion: ${state.vChild ?: "No data available yet."}"
 }
 
 def getZoneState(){
@@ -266,8 +268,22 @@ def systemOn(mainSetPoint,hvacMode){
     	//snapshot temp and pressure on zone start up
     	if (hvacMode != "idle"){
     		vents.each{ vent ->
-    			def ct = vent.currentValue("temperature").toFloat()
-				state."${vent.id}" = [P:vent.currentValue("pressure"),T:tempToK(ct)] 	
+            	//"temperature" BigDecimal
+                //"pressure"	String
+            	//log.info "get class types for temperature"
+            	//def c = vent.currentValue("temperature") //BigDecimal
+                //try {
+                //	log.info "class- temperature:${c.getClass()}"
+                //} catch(e){log.debug e}
+                //log.info "get class types for pressure (from string to int)"
+                //native class is string
+                //def p = vent.currentValue("pressure").toInteger() conversion faild
+                
+                //try {
+               // 	log.info "class- pressure:${p.getClass()}"
+               // } catch(e){log.debug e}
+			//	state."${vent.id}" = [P:p,T:tempToK(c)] 	
+                //log.debug "vent class- temp:${c.getClass()}, pressure:${p.getClass()}"
     		}
 		} 
     	if (hvacMode == "heating"){
@@ -346,15 +362,42 @@ def updateZoneSetpoint(mainSetPoint,hvacMode){
    return changeRequired
 }
 
+def zoneDisableHandeler(evt){
+	//if (evt.value == "on")
+    //log.debug "zoneDisableHandeler called"
+    //we only do something here if option immediate was selected.
+    log.debug "zoneDisableHandeler- evt.name:${evt.name}, evt.value:${evt.value} running:${state.running}"
+    if (zoneInactivateWhen == "now") {
+    	if (evt.value == "off"){
+        	//set the vents to zoneInactiveOptions
+            log.info "zoneDisableHandeler: set the vents to:${zoneInactiveOptions}"
+        } else if (state.running){
+        	log.info "zoneDisableHandeler: set the vents to:${maxVo}"
+        	//set to vmax
+        } else {
+        	log.info "zoneDisableHandeler: nothing to do"
+        }
+    	//if evt.value == off, set the vents to zoneInactiveOptions
+        // if on?, nothing to do really
+        //I guess if the system is running we shoud set them to vMax
+    } else {
+    
+    }
+}
+
 def ventHandler(evt){
-   	log.info "ventHandler- current zone temp:${tempStr(evt.floatValue)}, running:${state.running}, main setPoint:${tempStr(state.mainSetPoint)}, zone setPoint:${tempStr(state.setPoint)}"
-	if (state.running && state.setPoint){
-    		if (evt.floatValue >= state.setPoint){
+ 	if (hvacMode != "idle" && state.setPoint){
+    	if (evt.floatValue >= state.setPoint){
+        	state.running = false
        		vents.setLevel(minVo.toInteger())
-           	state.running = false
-           	log.info "zone set point reached, setting vents to:${minVo.toInteger()}%"
-       	}
+            log.info "zone set point reached, setting vents to:${minVo.toInteger()}%"
+       	} else {
+        	state.running = true
+        	vents.setLevel(maxVo.toInteger())
+        	log.info "re starting zone, setting vents to:${maxVo.toInteger()}%"
+        }
    	}
+    log.info "ventHandler- current zone temp:${tempStr(evt.floatValue)}, running:${state.running}, main setPoint:${tempStr(state.mainSetPoint)}, zone setPoint:${tempStr(state.setPoint)}"
 }
 
 def getAdjustedPressure(evt){
@@ -373,15 +416,23 @@ def getAdjustedPressure(evt){
         	//log.debug "initial- P1:${P1}, T1:${T1} event- name:${evt.name} value:${evt.value}"
             //pressure should be vs what it is...
             if (evt.name == "pressure"){
-            	def TM = evt.value
-            	def T2 = tempToK(vent.currentValue("temperature").toFloat())
+            	def TM = evt.value //String
+                //log.debug "vent classs- temp:${c.getClass()}, pressure:${p.getClass()}"
+                log.debug "vent event class"
+                try{
+                	log.debug "vent event class- pressure:${TM.getClass()}"
+                } catch(e){ log.debug e }
+                //try{
+                //	log.debug "vent event class- pressure:${TM.getClass()}"
+                //} catch(e){ log.debug e }
+                
+            	//def T2 = tempToK(vent.currentValue("temperature").toFloat())
                 //def TC = (P1 * T2)/T1
                 //number.round(0)	toDouble first???
                 //log.info "pressure adjusted:${(P1 * T2)/T1}, reported:${evt.value}"
                 //log.info "pressure adjusted:${TC}, reported:${TM}"
-                log.debug "raw: P1:${P1}, T1:${T1}, T2:${T2}, TM:${TM}"
-                
-                //log.debug "formatted: P1:${P1}, T1:${T1}, T2:${T2}, TM:${TM}"
+                log.debug "raw: P1: ${P1}, T1: ${T1}, T2: ${T2}, TM: ${TM}"
+				//        raw: P1:99187.5, T1:304,  T2:306,   TM:99278.9
             }
         }
     }
