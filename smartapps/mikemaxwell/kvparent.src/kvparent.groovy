@@ -181,7 +181,7 @@ def getReport(rptName){
     if (rptName == "Last results") cMethod = "getEndReport"
     def sorted = childApps.sort{it.label}
     sorted.each{ child ->
-    	log.debug "getting child report for: ${child}"
+    	log.debug "getting child report for: ${child.label}"
     	def report = child."${cMethod}"()
         reports = reports + child.label + ":${report}" + "\n"
     }
