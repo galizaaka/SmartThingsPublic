@@ -1,5 +1,5 @@
 /**
- *  kvParent 0.0.5
+ *  kvParent 0.0.6
  *
  *  Copyright 2015 Mike Maxwell
  *
@@ -39,11 +39,19 @@ def updated() {
 	initialize()
 }
 def initialize() {
+	state.vParent = "0.0.6"
     subscribe(tStat, "thermostatOperatingState", notifyZones)
     subscribe(tStat, "thermostatSetpoint", notifyZones)
+    
+
+    
    	//state.setPoint = null
     //subscribe(tStat, "thermostatHeatingSetpoint", setPointHandeler)
     /*
+    app.properties.each{ p ->
+    	log.info "p:${p}"
+    }
+    
     state.runMaps = []
     state.runTimes = []
     state.lastDPH = 0
@@ -100,6 +108,7 @@ def main(){
 						//,params		: [method:"addCommand",title:"Add Command"]
 					)                
                 }
+                section (getVersionInfo()) { }
             }
 	}
 }
@@ -172,6 +181,7 @@ def getReport(rptName){
     if (rptName == "Last results") cMethod = "getEndReport"
     def sorted = childApps.sort{it.label}
     sorted.each{ child ->
+    	log.debug "getting child report for: ${child}"
     	def report = child."${cMethod}"()
         reports = reports + child.label + ":${report}" + "\n"
     }
@@ -265,6 +275,16 @@ def statHandler(evt){
         }
         
     }
+}
+
+def getVersionInfo(){
+	return "Versions:\n\tparent: ${state.vParent}\n\tchild: ${state.vChild ?: "No data available yet."}"
+}
+
+def updateVer(vChild){
+	//parent.updateVer(state.vChild)
+    //state.vParent = "0.0.6"
+    state.vChild = vChild
 }
 
 def tempStr(temp){
