@@ -1,6 +1,10 @@
 /**
- *  kvChild 0.0.6
- 	
+ *  kvChild 0.0.6a
+ 
+ 	0.0.7	added Now, On next Start up, On next cycle end for disable vent closure
+    		added app version info on parent
+            fixed 
+    0.0.6a	added interim debugging
     0.0.6	added options on what to do when the zone is disabled...
     0.0.5	added disable switch option
     0.0.4	basic reporting
@@ -67,103 +71,121 @@ def main(){
         ,uninstall	: installed
         ){
 		     section("Zone Devices"){
-             		label(
-                    	title		: "Name the zone"
-                        ,required	: true
-                    )
-                    /*
-					only stock device types work in the list below???
-                    ticket submitted, as this should work, and seems to work for everyone except me...
-					*/
-                   input(
-                        name			: "vents"
-                        ,title			: "Keen vents in this Zone:"
-                        ,multiple		: true
-                        ,required		: true
-                        //,type			: "device.KeenHomeSmartVent"
-                        ,type			: "capability.switchLevel"
-                        ,submitOnChange	: soc
-					)
- 				 	input(
-            			name		: "tempSensors"
-                		,title		: "Temp Sensors:"
-                		,multiple	: false
-                		,required	: true
-                		,type		: "capability.temperatureMeasurement"
-                        ,submitOnChange	: soc
-            		) 
-                    /* out for now...
-					input(
-            			name		: "motionSensors"
-                		,title		: "Motion Sensors:"
-                		,multiple	: true
-                		,required	: false
-                		,type		: "capability.motionSensor"
-            		)   
-                    */
+             	label(
+                   	title		: "Name the zone"
+                    ,required	: true
+                )
+                /*
+				only stock device types work in the list below???
+                ticket submitted, as this should work, and seems to work for everyone except me...
+				*/
+                input(
+                    name			: "vents"
+                    ,title			: "Keen vents in this Zone:"
+                    ,multiple		: true
+                    ,required		: true
+                    //,type			: "device.KeenHomeSmartVent"
+                    ,type			: "capability.switchLevel"
+                    ,submitOnChange	: soc
+				)
+ 				input(
+            		name		: "tempSensors"
+                	,title		: "Temp Sensors:"
+                	,multiple	: false
+                	,required	: true
+                	,type		: "capability.temperatureMeasurement"
+                    ,submitOnChange	: soc
+            	) 
+                /* out for now...
+				input(
+            		name		: "motionSensors"
+                	,title		: "Motion Sensors:"
+                	,multiple	: true
+                	,required	: false
+                	,type		: "capability.motionSensor"
+            	)   
+                */
             }
             section("Zone Settings"){
-					input(
-            			name			: "minVo"
-                		,title			: "Minimum vent opening"
-                		,multiple		: false
-                		,required		: true
-                		,type			: "enum"
-                        ,options		: minVoptions()
-                        ,defaultValue	: ["20"]
-                        ,submitOnChange	: soc
-            		) 
-					input(
-            			name			: "maxVo"
-                		,title			: "Maximum vent opening"
-                		,multiple		: false
-                		,required		: true
-                		,type			: "enum"
-                        ,options		: [["35":"35%"],["40":"40%"],["45":"45%"],["50":"50%"],["55":"55%"],["60":"60%"],["65":"65%"],["70":"70%"],["80":"80%"],["100":"Fully open"]]
-                        ,defaultValue	: ["100"]
-                        ,submitOnChange	: soc
-            		) 
-					input(
-            			name			: "heatOffset"
-                		,title			: "Heating offset, (above or below main thermostat)"
-                		,multiple		: false
-                		,required		: true
-                		,type			: "enum"
-                        ,options 		: zoneTempOptions()
-                        ,defaultValue	: ["0"]
-                        ,submitOnChange	: soc
-            		) 
-					input(
-            			name			: "coolOffset"
-                		,title			: "Cooling offset, (above or below main thermostat)"
-                		,multiple		: false
-                		,required		: true
-                		,type			: "enum"
-                        ,options 		: zoneTempOptions()
-                        ,defaultValue	: ["0"]
-                        ,submitOnChange	: soc
-            		)    
-                    input(
-            			name			: "zoneControlSwitch"
-                		,title			: "Optional zone disable switch\n(on=enable management)\n(off=disable management)"
+				input(
+            		name			: "minVo"
+                	,title			: "Minimum vent opening"
+                	,multiple		: false
+                	,required		: true
+                	,type			: "enum"
+                    ,options		: minVoptions()
+                    ,defaultValue	: ["20"]
+                    ,submitOnChange	: soc
+            	) 
+				input(
+            		name			: "maxVo"
+                	,title			: "Maximum vent opening"
+                	,multiple		: false
+                	,required		: true
+                	,type			: "enum"
+                    ,options		: [["35":"35%"],["40":"40%"],["45":"45%"],["50":"50%"],["55":"55%"],["60":"60%"],["65":"65%"],["70":"70%"],["80":"80%"],["100":"Fully open"]]
+                    ,defaultValue	: ["100"]
+                    ,submitOnChange	: soc
+            	) 
+				input(
+            		name			: "heatOffset"
+                	,title			: "Heating offset, (above or below main thermostat)"
+                	,multiple		: false
+                	,required		: true
+                	,type			: "enum"
+                    ,options 		: zoneTempOptions()
+                    ,defaultValue	: ["0"]
+                    ,submitOnChange	: soc
+            	) 
+				input(
+            		name			: "coolOffset"
+                	,title			: "Cooling offset, (above or below main thermostat)"
+                	,multiple		: false
+                	,required		: true
+                	,type			: "enum"
+                    ,options 		: zoneTempOptions()
+                    ,defaultValue	: ["0"]
+                    ,submitOnChange	: soc
+            	)
+            }
+            section("Zone disable options"){
+            	def zcsTitle = zoneControlSwitch ? "Optional zone disable switch\n(on=enable management)\n(off=disable management)" : "Optional zone disable switch"
+                input(
+            		name			: "zoneControlSwitch"
+                	,title			: zcsTitle //"Optional zone disable switch\n(on=enable management)\n(off=disable management)"
+                	,multiple		: false
+                	,required		: false
+                	,type			: "capability.switch"
+                    ,submitOnChange	: true
+            	)  
+                if (zoneControlSwitch){
+                	//zcsTitle = zcsTitle + "\n(on=enable management)\n(off=disable management)"
+                   	def zioTitle = zoneInactiveOptions ? "When zone is disabled, set vents to:" : "When zone is disabled, vents will not be changed"
+                   	input(
+            			name			: "zoneInactiveOptions"
+                		,title			: zioTitle
                 		,multiple		: false
                 		,required		: false
-                		,type			: "capability.switch"
-                        ,submitOnChange	: true
-            		)  
-                    if (zoneControlSwitch){
-                    	def zcsTitle = zoneInactiveOptions ? "When zone changes to off, set vent opening to:" : "When zone changes to off, vent opening will not be changed"
-                    	input(
-            				name			: "zoneInactiveOptions"
-                			,title			: zcsTitle
+                		,type			: "enum"
+                       	,options		: minVoptions()
+                       	,submitOnChange	: true
+                        //,defaultValue	: "${minVo}"
+            		)
+                    /*
+                    if (zoneInactiveOptions){
+                   		input(
+            				name			: "zoneInactivateWhen"
+                			,title			: "When zone is disabled, change vents..."
                 			,multiple		: false
                 			,required		: false
                 			,type			: "enum"
-                        	,options		: minVoptions()
-                        	,submitOnChange	: true
-                            //,defaultValue	: "${minVo}"
-            			)
+                       		,options		: [["start":"at next cycle start"],["end":"at next cycle end"],["immediatly":"immediatly"]]
+                       		,submitOnChange	: true
+                           	,defaultValue	: "end"
+            			)                        
                     }
+                    */
+                }
             }
             //clean this up later...
             if (zoneControlSwitch) state.zoneControlActive = zoneControlSwitch.currentValue("switch") == "on"
@@ -224,15 +246,15 @@ def getVentReport(){
 }
 
 //zone control methods
-def systemOn(setPoint,hvacMode){
+def systemOn(mainSetPoint,hvacMode){
 	def cTemp = tempSensors.currentValue("temperature")
     state.hvacMode = hvacMode
-    state.mainSetPoint = setPoint
+    state.mainSetPoint = mainSetPoint
     
     if (zoneControlSwitch) state.zoneControlActive = zoneControlSwitch.currentValue("switch") == "on"
     else state.zoneControlActive = true
     
-    def changeRequired = updateZoneSetpoint(setPoint,hvacMode)
+    def changeRequired = updateZoneSetpoint(mainSetPoint,hvacMode)
     
     log.info "zc states: ${state.zoneControlActive} spChange required?${changeRequired}"
     
@@ -256,7 +278,7 @@ def systemOn(setPoint,hvacMode){
     		} else {
     			state.running = false
             	vents.setLevel(minVo.toInteger())
-    			log.info "System on, nothing to do, heating set point already met"
+    			log.info "System heat on, nothing to do, set point already met"
     		}         
     	} else if (hvacMode == "cooling"){
     		if (cTemp >= state.setPoint){
@@ -266,12 +288,12 @@ def systemOn(setPoint,hvacMode){
     		} else {
     			state.running = false
             	vents.setLevel(minVo.toInteger())
-    			log.info "System on, nothing to do, cooling set point already met"
+    			log.info "System cool on, nothing to do, set point already met"
     		}         
     	} else {
     		//something pithy here...tempStr(cTemp)
     	}
-    	log.info "systemOn- mode: ${hvacMode}, main setPoint: ${tempStr(setPoint)}, zone setPoint: ${tempStr(state.setPoint)}, current zone temp: ${tempStr(cTemp)}, vent levels: ${vents.currentValue("level")}%"
+    	log.info "systemOn- mode: ${hvacMode}, main setPoint: ${tempStr(state.mainSetPoint)}, zone setPoint: ${tempStr(state.setPoint)}, current zone temp: ${tempStr(cTemp)}, vent levels: ${vents.currentValue("level")}%"
     } else {
     	state.running = false
     	log.info "systemOn- mode: ${hvacMode}, zone deactived via zone control switch"
@@ -299,13 +321,13 @@ def systemOff(){
     
 }
 
-def updateZoneSetpoint(setPoint,hvacMode){
-	//log.debug "updateZoneSetpoint called: main setpoint:${setPoint}"
+def updateZoneSetpoint(mainSetPoint,hvacMode){
+	log.debug "updateZoneSetpoint called: mainSetPoint from thermostat:${mainSetPoint}, mainSetPoint from state:${state.mainSetPoint}"
     //heat sp change required?:false, newSP:75, oldSP:73
+    
     def changeRequired = false
 	if (hvacMode == "heating"){
-    	def hsp = setPoint + heatOffset.toInteger()
-        //log.debug "heat set point change required?:${state.setPoint != hsp}, newSP:${hsp}, oldSP:${state.setPoint}"
+    	def hsp = mainSetPoint + heatOffset.toInteger()
         if (state.setPoint != hsp){
         	//set point adjusted
             log.debug "heat set point change required: newSP:${hsp}, oldSP:${state.setPoint}"
@@ -313,34 +335,26 @@ def updateZoneSetpoint(setPoint,hvacMode){
             changeRequired = true
         }
     } else if (hvacMode == "cooling"){
-    	def csp = setPoint + coolOffset.toInteger()
-        //log.debug "cool set point change required?:${state.setPoint != csp}, newSP:${csp}, oldSP:${state.setPoint}"
+    	def csp = mainSetPoint + coolOffset.toInteger()
         if (state.setPoint != csp){
         	//set point adjusted
             log.debug "cool set point change required: newSP:${csp}, oldSP:${state.setPoint}"
         	state.setPoint = csp
             changeRequired = true
         }
-        
    }
    return changeRequired
 }
 
 def ventHandler(evt){
-	//def vo = tempStr(evt.floatValue)
-	log.info "ventHandler- current zone temp:${tempStr(evt.floatValue)}, running:${state.running}, zone setPoint:${tempStr(state.setPoint)}"
-    //def T1 = state.T1
-    //def P1 = state.P1
-    //def T2 = evt.floatValue
-    //if (T1 && T2 && P1) log.info "adjusted pressure:${(P1 * T2)/T1}"
-
+   	log.info "ventHandler- current zone temp:${tempStr(evt.floatValue)}, running:${state.running}, main setPoint:${tempStr(state.mainSetPoint)}, zone setPoint:${tempStr(state.setPoint)}"
 	if (state.running && state.setPoint){
-    	if (evt.floatValue >= state.setPoint){
-        	vents.setLevel(minVo.toInteger())
-            state.running = false
-            log.info "zone set point reached, setting vents to:${minVo.toInteger()}%"
-        }
-    }
+    		if (evt.floatValue >= state.setPoint){
+       		vents.setLevel(minVo.toInteger())
+           	state.running = false
+           	log.info "zone set point reached, setting vents to:${minVo.toInteger()}%"
+       	}
+   	}
 }
 
 def getAdjustedPressure(evt){
