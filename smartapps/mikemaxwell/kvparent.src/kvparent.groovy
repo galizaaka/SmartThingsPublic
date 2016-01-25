@@ -1,6 +1,8 @@
 /**
- *  kvParent 0.0.8
+ *  kvParent 0.0.8a
  	
+    0.0.8a	fixed initial notify delay bug
+    		moved vent polling to child
     0.0.8	other stuff to support the needs of the children
  	0.0.7	added fan run on delay
  *
@@ -42,7 +44,7 @@ def updated() {
 	initialize()
 }
 def initialize() {
-	state.vParent = "0.0.8"
+	state.vParent = "0.0.8a"
     //subscribe(tStat, "thermostatSetpoint", notifyZones) doesn't look like we need to use this
     subscribe(tStat, "thermostatMode", checkNotify)
     subscribe(tStat, "thermostatFanMode", checkNotify)
@@ -50,6 +52,8 @@ def initialize() {
     subscribe(tStat, "heatingSetpoint", checkNotify)
     subscribe(tStat, "coolingSetpoint", checkNotify)
 
+	
+    
 	checkNotify(null)
     
   	/*
@@ -97,7 +101,7 @@ def main(){
             		) 
                     input(
             			name			: "fanRunOn"
-                		,title			: "Fan run on and set back notification delay:"
+                		,title			: "Fan run on notification delay:"
                 		,multiple		: false
                 		,required		: true
                 		,type			: "enum"
@@ -182,6 +186,8 @@ def getReport(rptName){
 	if (rptName == "Current state"){
     	cMethod = "getZoneState"
         def os = tStat.currentValue("thermostatOperatingState") ?: "No data available yet."
+        //log.debug "thermostatmode: ${tStat.currentValue("thermostatMode")}"
+        
         def t = tempSensors.currentValue("temperature")
         reports = "Main system:\n\tmode: ${os}\n\tcooling set point: ${tempStr(mainCSP)}\n\theating set point: ${tempStr(mainHSP)}\n\tcurrent temp: ${tempStr(t)}\n\n"
     }
@@ -215,23 +221,29 @@ def getHVACstate(){
 def checkNotify(evt){
 	//log.debug "thermostat event- name: ${evt.name} value: ${evt.value} , description: ${evt.descriptionText}"
 
-//get current states
+	//get current states
     def csp = tStat.currentValue("coolingSetpoint").toFloat()
     def hsp = tStat.currentValue("heatingSetpoint").toFloat()
     def hvacMode = getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
+    def hvacSet = getNormalizedOS(tStat.currentValue("thermostatMode"))
+    
     def mainOn = hvacMode != "idle"
     def delay = fanRunOn.toInteger()
     
     //get previous states
-    def previousHVACmap  = atomicState.hvacMap ?: [mainCSP:csp,mainHSP:hsp,mainMode:hvacMode,mainOn:mainOn]
+    def previousHVACmap  = atomicState.hvacMap ?: [mainCSP:csp,mainHSP:hsp,mainMode:hvacMode,mainOn:mainOn,spChange:true,modeChange:true,hvacSet:hvacSet]
     def lastHSP = previousHVACmap.mainHSP.toFloat()
     def lastCSP = previousHVACmap.mainCSP.toFloat()
     def lastMode = previousHVACmap.mainMode
+    //def lastSpChange = previousHVACmap.spChange
+    //def lastModeChange = previousHVACmap.modeChange
+    def lastHvacSet = previousHVACmap.hvacSet
     
     //get state changes
     def isSetback = false
+    
     if (mainOn){
-    	isSetback = (hvacMode == "heating" && hsp < lastHSP ) || (hvacMode == "cooling" && csp > lastCSP)
+    	isSetback = (hvacSet == "heating" && hsp < lastHSP ) || (hvacSet == "cooling" && csp > lastCSP)
     }
     
     def isSetPointChange = ((hsp != lastHSP) || (csp != lastCSP))
@@ -239,45 +251,28 @@ def checkNotify(evt){
     def isModeChange = (evt == null || hvacMode != lastMode)
     
     //set states
-    atomicState.hvacMap = [mainCSP:csp,mainHSP:hsp,mainMode:hvacMode,mainOn:mainOn,spChange:isSetPointChange,modeChange:isModeChange]
-    
-  
-    
-    //figure out the zone call
-    if (isSetback && mainOn && delay != 0){
-    	 log.trace "notify zones, scheduled in ${delay} seconds."
-         runIn(delay,notifyZones)
-    } else {
-    	notifyZones()
-    }
-    
-    //start pressure polling
-    if (isModeChange && mainOn) runPoll()
-     
-
+    atomicState.hvacMap = [mainCSP:csp,mainHSP:hsp,mainMode:hvacMode,mainOn:mainOn,spChange:isSetPointChange,modeChange:isModeChange,hvacSet:hvacSet]
     
     log.info "checkNotify-"
     log.trace "--hvacMode: ${hvacMode}, isChange: ${isModeChange}"
+    log.trace "--hvacSet: ${hvacSet}"
     log.trace "--isSetback: ${isSetback}"
     log.trace "--cooling setpoint: ${csp}" 
     log.trace "--heating set point: ${hsp}"
     
- 
-}
-
-def runPoll(){
-	log.trace "started vent polling"
-    childApps.each {child ->
-    	child.pollVents()
+	//skip set point changes if we're idle
+    if (mainOn){
+  		notifyZones()
+    } else if (!mainOn && isModeChange){
+      	if (delay != 0){
+			log.info "notify zones, scheduled in ${delay} seconds."        	
+            runIn(delay,notifyZones)
+       } else notifyZones()
     }
-    //atomicState.hvacMap = [mainCSP:csp,mainHSP:hsp,mainMode:hvacMode,mainOn:mainOn]
-    def hvacMap = atomicState.hvacMap ?: null
-    if (hvacMap == null) return
-    if (hvacMap.mainOn) runIn(60,runPoll)
 }
 
 def notifyZones(){
-    log.trace "notify zones- "
+    log.info "executing notify zones"
     childApps.each {child ->
     	child.zoneEvaluate("mainChange")
     }
@@ -285,9 +280,9 @@ def notifyZones(){
 
 def getNormalizedOS(os){
 	def normOS = ""
-    if (os == "heating" || os == "pending heat"){
+    if (os == "heating" || os == "pending heat" || os == "heat" || os == "emergency heat"){
     	normOS = "heating"
-    } else if (os == "cooling" || os == "pending cool"){
+    } else if (os == "cooling" || os == "pending cool" || os == "cool"){
     	normOS = "cooling"
     } else {
     	normOS = "idle"
@@ -353,8 +348,6 @@ def getVersionInfo(){
 }
 
 def updateVer(vChild){
-	//parent.updateVer(state.vChild)
-    //state.vParent = "0.0.6"
     state.vChild = vChild
 }
 
@@ -363,6 +356,7 @@ def tempStr(temp){
     if (temp) return "${temp.toString()}°${tc}"
     else return "No data available yet."
 }
+
 def getSelectedDevices(deviceList){
 	def deviceIDS = []
     deviceList.each{ device ->

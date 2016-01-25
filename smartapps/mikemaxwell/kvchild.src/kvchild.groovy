@@ -1,6 +1,7 @@
 /**
- *  kvChild 0.0.8
- 
+ *  kvChild 0.0.8a
+ 	
+    0.0.8a	bug fixes, poller and notify
  	0.0.8	actually got zone update support working
  			fixed bug, zone not restarting
     		added app version info on the bottom of the parent page
@@ -194,7 +195,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vChild = "0.0.8"
+	state.vChild = "0.0.8a"
     parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", tempHandler)
     subscribe(vents, "pressure", getAdjustedPressure)
@@ -208,9 +209,11 @@ def initialize() {
 //zone control methods
 
 def zoneEvaluate(params){
+	log.debug "zoneEvaluate- parameters: ${params}"
     //get current main state
-    //[mainCSP:csp,mainHSP:hsp,mainMode:hvacMode,mainOn:mainOn,spChange:isSetPointChange]
+    //atomicState.hvacMap = [mainCSP:csp,mainHSP:hsp,mainMode:hvacMode,mainOn:mainOn,spChange:isSetPointChange,modeChange:isModeChange,hvacSet:hvacSet]
     def hvacMap = parent.getHVACstate()
+    //log.warn "${hvacMap}"
     if (hvacMap == null) return
     def mainCSP	= hvacMap.mainCSP
     def mainHSP	= hvacMap.mainHSP
@@ -218,6 +221,7 @@ def zoneEvaluate(params){
     def mainOn = hvacMap.mainOn
     def spChange = hvacMap.spChange
     def modeChange = hvacMap.modeChange
+    def hvacSet = hvacMap.hvacSet
     
 	def running = state.running
     def zoneDisablePending = state.zoneDisablePending ?: false
@@ -233,7 +237,7 @@ def zoneEvaluate(params){
     def initChanged = false
     def zoneDisableChanged = false
     
-    log.debug "zoneEvaluate- parameters: ${params}"
+    
     //parse params
     if (params){
     	switch (params){
@@ -245,7 +249,7 @@ def zoneEvaluate(params){
             	mainChanged = true
             	break
         	case "tempChange" :
-            	tempChanged = true
+            	if (mainOn) tempChanged = true
             	break
         	case "init" :
             	initChanged = true
@@ -259,19 +263,25 @@ def zoneEvaluate(params){
     def maxVo = settings.maxVo.toInteger()
     def minVo = settings.minVo.toInteger()
     def cvo = atomicState.voRequest
-  
- 
+  	
+    //local only
+    def setPoint
+	def mainSetPoint
+    if (hvacSet == "heating"){
+    	setPoint = hsp
+        mainSetPoint = mainHSP
+    } else if (hvacSet == "cooling"){
+    	setPoint = csp
+    	mainSetPoint = mainCSP
+    }
+    
     
     def canRun = (tempChanged || mainChanged || initChanged ) 
     def runNow = (canRun && (!zoneDisabled || zoneDisablePending))
 
-    log.debug "change states- run: ${runNow}, tempChanged: ${tempChanged}, mainChanged: ${mainChanged}, initChanged: ${initChanged}, zoneDisablePending: ${zoneDisablePending}, zoneDisabled: ${zoneDisabled}"
+	if (modeChange && mainOn) pollVents()
     
-    //local only
-    def setPoint
-	def mainSetPoint
-    
-    //rune zone management
+    //run zone management
  	if (runNow){
     	def spMet = false
         running = true
@@ -281,39 +291,39 @@ def zoneEvaluate(params){
             
 			spMet = zoneTemp >= hsp
             if (spMet){
-            	cvo = setVents(minVo)
+            	setVents(minVo)
             	running = false
             } else {
-            	cvo = setVents(maxVo)
+            	setVents(maxVo)
             }
         } else if (mainMode == "cooling"){
         	setPoint = csp
             mainSetPoint = mainCSP
         	spMet = zoneTemp <= csp
         	if (spMet){
-            	cvo = setVents(minVo)
+            	setVents(minVo)
             	running = false
         	} else {
-            	cvo = setVents(maxVo)
+            	setVents(maxVo)
             }            
         } else if (mainMode == "idle"){
         	running = false
             zoneDisablePending = false
             log.info "zoneEvaluate- main HVAC is idle"
-    		def zsp = hsp-- ?: 0
+    		def zsp = setPoint ?: 0
     		def d = zoneTemp - zsp
         	d = d.round(1)
     		state.endReport = "\n\tset point: ${tempStr(zsp)}\n\tend temp: ${tempStr(zoneTemp)}\n\tvariance: ${tempStr(d)}\n\tvent levels: ${vents.currentValue("level")}%"        
        
             if (zoneDisabled){ 
                	log.warn "Vents closed via zone disable switch"
-               	cvo = setVents(0)
+               	setVents(0)
             }
 
 			def closeOption = ventCloseWait.toInteger()
         	if (closeOption == 0){
         		log.warn "Vents closed via Close vents option"
-        		cvo = setVents(0)
+        		setVents(0)
         	} else if (closeOption > 0){
         		log.warn "Vent closing scheduled via Close vents option"
         		runIn(closeOption,delayClose)
@@ -327,6 +337,23 @@ def zoneEvaluate(params){
     	//nothing to do
     }
     
+    if (runNow){
+    log.info "zoneEvaluate--"
+    log.trace "--hvacMode: ${mainMode}"
+    log.trace "--zone running: ${running}"
+    log.trace "--zone disabled: ${zoneDisabled}"
+    log.trace "--zone active set point: ${tempStr(setPoint)}"
+    //log.trace "--zone cooling set point: ${tempStr(csp)}"
+    //log.trace "--zone heating set point: ${tempStr(hsp)}"
+    log.trace "--current vo: ${vents.currentValue("level")}"
+    log.trace "--zone temp: ${tempStr(zoneTemp)}"
+    log.trace "--main active set point: ${tempStr(mainSetPoint)}"
+    //log.trace "--main cooling set point: ${tempStr(mainCSP)}"
+    //log.trace "--main heating set point: ${tempStr(mainHSP)}"
+    }
+    log.debug "change states- run: ${runNow}, tempChanged: ${tempChanged}, mainChanged: ${mainChanged}, initChanged: ${initChanged}, zoneDisablePending: ${zoneDisablePending}, zoneDisabled: ${zoneDisabled}"
+ 	
+ 
     //write vars
     state.mainMode = mainMode
     state.zoneTemp = zoneTemp
@@ -339,18 +366,7 @@ def zoneEvaluate(params){
     state.zoneDisablePending = zoneDisablePending
     
     
-    log.info "zoneEvaluate--"
-    log.trace "--hvacMode: ${mainMode}"
-    log.trace "--zone running: ${running}"
-    log.trace "--zone disabled: ${zoneDisabled}"
-    log.trace "--zone active set point: ${tempStr(setPoint)}"
-    //log.trace "--zone cooling set point: ${tempStr(csp)}"
-    //log.trace "--zone heating set point: ${tempStr(hsp)}"
-    log.trace "--current vo: ${cvo}"
-    log.trace "--zone temp: ${tempStr(zoneTemp)}"
-    log.trace "--main active set point: ${tempStr(mainSetPoint)}"
-    //log.trace "--main cooling set point: ${tempStr(mainCSP)}"
-    //log.trace "--main heating set point: ${tempStr(mainHSP)}"
+ 
 }
 
 //event handlers
@@ -484,8 +500,12 @@ def getStandardPressure(){
 }
 
 def pollVents(){
+	log.warn "polling vents"
 	vents.getPressure()
     vents.getTemperature()
+    def hvacMap = atomicState.hvacMap ?: null
+    if (hvacMap == null) return
+    if (hvacMap.mainOn) runIn(60,pollVents)
 }
 
 def delayClose(){
