@@ -11,12 +11,43 @@ definition(
 )
 
 preferences {
+    page(name: "expert")
     page(name: "customCommandsPAGE")
     page(name: "generalApprovalPAGE")
     page(name: "addCustomCommandPAGE")		
 	page(name: "deleteCustomCommandPAGE")	
-	page(name: "customParamsPAGE")			
-			
+	page(name: "customParamsPAGE")		
+    page(name: "ttsPAGE")
+    page(name: "addCustomClipPAGE")		
+	page(name: "deleteCustomClipPAGE")	
+}
+
+/*****custom command specific pages	*****/
+def expert(){
+	dynamicPage(name: "expert", title: "Expert Features", uninstall: false, install: false) {
+        section(){
+        	paragraph 	"Custom commands allows Rules to control devices with custom capabilities.\n" +
+            			"Dual dimmers and switches, thing shields, FGBW controllers or any device you might build a " +
+                        "custom smartApp to utilize.\n" +
+                        "Custom commands that are created and saved here will become available for use in any new " +
+                        "or existing rules.\n" +
+                        "After saving at least one command, look for 'Run custom device command' in your 'Select " +
+                        "the Actions for...'  sections."
+        	//expert hrefs...
+           	href( "customCommandsPAGE"
+           		,title		: "Configure Custom Commands..."
+           		,description: ""
+           		,state		: anyCustom()
+           	)
+            paragraph	"Manage text to speech phrases to use in your Rule Machine Rules and Triggers."
+            href( "ttsPAGE"
+            	,title		: "Configure TTS phrases..."
+                ,description:""
+                ,state		: ""
+            )
+        }
+    }
+
 }
 
 def generalApprovalPAGE(params){
@@ -32,7 +63,54 @@ def generalApprovalPAGE(params){
 		}
 	}
 }
-
+def ttsPAGE() {
+	if (!state.lastClipIDX) state.lastClipIDX = 0
+	def savedClips = getClips()
+	dynamicPage(name: "ttsPAGE", title: "TTS phrases", uninstall: false, install: false) {
+    	section(){
+        	input(
+            	name			: "speakers"
+                ,title			: "Test speaker"
+                ,multiple		: false
+                ,required		: false
+                ,type			: "capability.musicPlayer"
+                ,submitOnChange	: true
+            )	
+			if (settings.speaker && savedClips.size() != 0){
+				input(
+					name			: "testClip"
+					,title			: "Select saved command to test"
+					,multiple		: false
+					,required		: false
+					,type			: "enum"					
+                	,options		: savedClips
+					,submitOnChange	: true
+				)
+            }  
+        }
+        def result = execClip(settings.testClip)
+        if (result) {
+        	section("${result}"){
+    		}
+        }
+    	section(){
+        	if (speakers){
+				href( "addCustomClipPAGE"
+					,title		: "New TTS command..."
+					,description: ""
+					,state		: null
+				)
+        	}
+			if (getCommands()){
+				href( "deleteCustomClipPAGE"
+					,title		: "Delete TTS commands..."
+					,description: ""
+					,state		: null
+				)
+			}
+		}
+    }
+}
 def customCommandsPAGE() {
 	if (!state.lastCmdIDX) state.lastCmdIDX = 0
 	def savedCommands = getCommands()
@@ -138,6 +216,54 @@ def addCustomCommandPAGE(){
 		}
 	}
 }
+def addCustomClipPAGE(){
+	def clipLabel = getClipLabel()
+	def complete = "" 
+	def test = false
+    def pageTitle = "Create new TTS command for:\n${speakers}" 
+	if (clipLabel){
+		complete = "complete"
+		test = true
+	}
+	dynamicPage(name: "addCustomClipPAGE", title: pageTitle, uninstall: false, install: false) {
+		section(){
+			input(
+		   		name			: "cClip"
+				,title			: "Enter text"
+				,multiple		: false
+				,required		: false
+                ,type			: "string"
+                //,options		: getDeviceCommands()
+				,submitOnChange	: true
+		 	)
+			input(
+		   		name			: "clipLevel"
+				,title			: "Select test volume"
+				,multiple		: false
+				,required		: false
+                ,type			: "enum"
+                ,options		: ["10","20","30","40","50","60","70","80","90","100"]
+				,submitOnChange	: true
+		 	)
+        }
+ 		if (test && clipLevel){
+        	def result = execTestClip()
+           	section("Configured TTS: ${clipLabel}\n${result}"){
+            	if (result == "suceeded"){
+                   	//if (!clipExists(clipLabel)){
+						href( "generalApprovalPAGE"
+							,title		: "Save TTS command now"
+							,description: ""
+							,state		: null
+							,params		: [method:"addClip",title:"Add TTS Command"]
+						)
+                   	//}
+				} 
+			}
+		}
+	}
+}
+
 def deleteCustomCommandPAGE(){
 	dynamicPage(name: "deleteCustomCommandPAGE", title: "Delete custom commands", uninstall: false, install: false) {
 		section(){
@@ -198,16 +324,11 @@ def initialize() {
     }
 }
 /***** child specific methods *****/
-
-/*
-//stub for non expert Rule Machine page
-// must remain commented out for expert version
-def getCommands(){
-	return []
-}
-*/
 def getCommandMap(cmdID){
 	return state.customCommands["${cmdID}"]
+}
+def getClipMap(clipID){
+	return state.customClips["${clipID}"]
 }
 
 /***** local custom command specific methods *****/
@@ -272,6 +393,14 @@ def getCmdLabel(){
 	}
 	return result
 }
+def getClipLabel(){
+	def clip
+    def result = null
+    if (settings.cClip) clip = settings.cClip.value
+    if (clip) result = clip
+    return result
+}
+
 def getParams(cpTypes){
 	def result = ""
 	cpTypes.each{ cpType ->
@@ -337,7 +466,15 @@ def getCommands(){
 	}
 	return result
 }
-
+def getClips(){
+	def result = [] 
+    def clipMaps = state.customClips ?: []
+	clipMaps.each{ c ->
+		def option = [(c.key):(c.value.text)]
+        result.push(option)
+	}
+	return result
+}
 def isValidCommand(cmdIDS){
 	def result = false
 	cmdIDS.each{ cmdID ->
@@ -364,6 +501,14 @@ def commandExists(cmd){
     }
     return result
 }
+def clipExists(clip){
+	def result = false
+	if (state.customClips){
+    	result = state.customClips.find{ it.value.text == "${clip}" }
+    }
+    return result
+}
+
 def addCommand(){
 	def result
     def newCmd = getCmdLabel()
@@ -392,7 +537,20 @@ def addCommand(){
 	}
 	return result
 }
+def addClip(){
+	def result
+    def newClip = getClipLabel()
+    def found = clipExists(newClip)
+	def clipMaps = state.customClips
+	//only update if not found...
+	if (!found) {
+		state.lastClipIDX = state.lastClipIDX + 1
+		def nextIDX = state.lastClipIDX
+        //rename these
+		def clip = [text:"${newCmd}",cmd:"${cCmd}"]
 
+	}
+}
 def execTestCommand(){
 	def result
 	def cTypes = settings.findAll{it.key.startsWith("cpType_")}.sort()
@@ -412,6 +570,27 @@ def execTestCommand(){
 		}
 	}
 	return result
+}
+def execTestClip(){
+	def result
+    try {
+		def msg = textToSpeech("${cClip}")
+    	log.info "tts:${msg}"
+    	speakers.each { speaker ->
+        	try {
+            	log.info "device:${speaker.displayName} uri:${msg.uri} duration:${msg.duration}"
+        		speaker.playTrackAndRestore(msg.uri,msg.duration, clipLevel.toInteger())
+                result = "suceeded"
+            }
+            catch (e) {
+   				result = "playTrackAndRestore failed:\n${e}"		         	
+            }
+        }
+    }
+    catch (e) {
+    	result = "TTS conversion failed:\n${e}"
+    }
+    return result
 }
 
 def execCommand(cmdID){
@@ -448,9 +627,18 @@ def execCommand(cmdID){
 		}
     }
 }
+def execClip(clipID){
+	def result
+    return result
+}
+
 def getDeviceCommands(){
     def result = ""
 	devices.each { device ->
+        cmds = device.supportedCommands
+        log.info "cmds:${cmds}"
+        result = cmds
+        /*
 		try {
 			device."xxx"()
 			result = "Command succeeded"
@@ -461,6 +649,7 @@ def getDeviceCommands(){
             ems = ems[2].replace(" [","").replace("]","")
             result = ems.split(", ").collect{it as String}
 		}
+        */
 	}
 	return result
 }

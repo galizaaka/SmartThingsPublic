@@ -1,6 +1,7 @@
 /**
- *  kvChild 0.1.0
+ *  kvChild 0.1.1
  	
+    0.1.1	fixed bug in zone temp
     0.1.0	added adjustable logging
     		added pressure polling switch option
     0.0.8a	bug fixes, poller and notify
@@ -58,7 +59,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vChild = "0.1.0"
+	state.vChild = "0.1.1"
     parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", tempHandler)
     subscribe(vents, "pressure", getAdjustedPressure)
@@ -293,15 +294,17 @@ def zoneEvaluate(params){
 	def mainOn = state.mainOn 
     def zoneCSP = state.zoneCSP
     def zoneHSP = state.zoneHSP
-    def zoneTemp = state.zoneTemp ?: tempSensors.currentValue("temperature").toFloat()
+    
     def zoneDisablePending = state.zoneDisablePending ?: false
 	def zoneDisabled = state.zoneDisabled ?: false
     def running
     
-    def coolOffset = state.coolOffset ?: settings.coolOffset.toInteger()
-    def heatOffset = state.heatOffset ?: settings.heatOffset.toInteger()
-    def maxVo = state.maxVo ?: settings.maxVo.toInteger()
-    def minVo = state.minVo ?:  settings.minVo.toInteger()
+    //always fetch these
+    def zoneTemp = tempSensors.currentValue("temperature").toFloat()
+    def coolOffset = settings.coolOffset.toInteger()
+    def heatOffset = settings.heatOffset.toInteger()
+    def maxVo = settings.maxVo.toInteger()
+    def minVo = settings.minVo.toInteger()
     
     switch (msg){
     	case "stat" :
@@ -351,21 +354,18 @@ def zoneEvaluate(params){
                 mainHSP = data.mainHSP
                 mainCSP = data.mainCSP
                 mainOn = data.mainOn
-                coolOffset = settings.coolOffset.toInteger()
-                heatOffset = settings.heatOffset.toInteger()
                 zoneCSP = mainCSP + coolOffset
                 zoneHSP = mainHSP + heatOffset
         	break
         case "temp" :
-        		//[msg:"tempChange", data:[temp:evt.value.toFloat()]]
+        		//data:["tempChange"]
         		//logger(30,"debug","zoneEvaluate- msg: ${msg}, data: ${data}")
-                zoneTemp = data.temp
-                //temp changes if zone is not disabled
-                if ((mainOn && !zoneDisabled) || (mainOn && zoneDisablePending)){
-                	logger(30,"debug","zoneEvaluate- zone temperature changed, data: ${data}")
+                //process changes if zone is not disabled
+                if (!zoneDisabled || zoneDisablePending){
+                	logger(30,"debug","zoneEvaluate- zone temperature changed, zoneTemp: ${zoneTemp}")
                 	evaluateVents = true
                 } else {
-                	logger(30,"warn","zoneEvaluate- ${msg}, no matching events, data: ${data}")
+                	logger(30,"warn","zoneEvaluate- ${msg}, no matching events")
                 }
         	break
         case "vent" :
@@ -396,10 +396,6 @@ def zoneEvaluate(params){
                 if (data.settingsChanged){
                 	//[msg:"self", data:[maxVo:maxVo.toInteger(),minVo:minVo.toInteger(),coolOffset:coolOffset.toInteger(),heatOffset:heatOffset.toInteger()]]
                 	logger(30,"debug","zoneEvaluate- zone settingsChanged, data: ${data}")
-       				maxVo = settings.maxVo.toInteger()
-            		minVo = settings.minVo.toInteger()            
-               		coolOffset = settings.coolOffset.toInteger()
-                	heatOffset = settings.heatOffset.toInteger()                   
                     zoneCSP = mainCSP + coolOffset
                 	zoneHSP = mainHSP + heatOffset
                 	evaluateVents = true
@@ -503,9 +499,10 @@ def zoneDisableHandeler(evt){
 
 def tempHandler(evt){
     logger(40,"debug","tempHandler- evt name: ${evt.name}, value: ${evt.value}")
-    if (evt.isStateChange()){
+    state.zoneTemp = evt.value.toFloat()
+    if (state.mainOn){
     	logger(30,"debug","tempHandler- tempChange, value: ${evt.value}")
-    	zoneEvaluate([msg:"temp", data:[temp:evt.value.toFloat()]])	
+    	zoneEvaluate([msg:"temp", data:["tempChange"]])	
     }
     
 }
