@@ -1,6 +1,7 @@
 /**
- *  kvParent 0.1.2
+ *  kvParent 0.1.2a
  	
+    0.1.2a	update for todays change in todays map input change
     0.1.2	0.1.1 was a cruel and mean thing...
     0.1.1	fixed delay notification and null init issues
     0.1.0	detected setback 
@@ -52,7 +53,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vParent = "0.1.2"
+	state.vParent = "0.1.2a"
     //subscribe(tStat, "thermostatSetpoint", notifyZones) doesn't look like we need to use this
     subscribe(tStat, "thermostatMode", checkNotify)
     subscribe(tStat, "thermostatFanMode", checkNotify)
@@ -142,23 +143,6 @@ def main(){
             		)             
             }
             if (installed){
-            	/*
-            	section("Reporting"){
-         			href( "reporting"
-						,title		: "Available reports..."
-						,description: ""
-						,state		: null
-					)                
-                }
-                section("Advanced"){
-                	//advanced hrefs...
-					href( "advanced"
-						,title			: "Advanced features..."
-						,description	: ""
-						,state			: null
-					)
-                }
-                */
                 section (getVersionInfo()) { }
             }
 	}
@@ -179,7 +163,7 @@ def advanced(){
                	,required		: true
                	,type			: "enum"
                 ,options		:[["-1":"Do not change"],["0":"Fully closed"],["10":"10%"],["20":"20%"],["30":"30%"],["40":"40%"],["50":"50%"],["60":"60%"],["70":"70%"],["80":"80%"],["90":"90%"],["100":"Fully open"]]
-                ,defaultValue	: ["-1"]
+                ,defaultValue	: "-1"
                 ,submitOnChange	: true
             )     
             def vo = -1
@@ -196,7 +180,7 @@ def advanced(){
                 ,type			: "enum"
  				,options		: [["0":"None"],["10":"Lite"],["20":"Moderate"],["30":"Detailed"],["40":"Super nerdy"]]
                 ,submitOnChange	: false
-                ,defaultValue	: ["10"]
+                ,defaultValue	: "10"
             )  
             
         }

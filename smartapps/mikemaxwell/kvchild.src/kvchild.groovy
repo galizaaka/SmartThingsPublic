@@ -1,6 +1,7 @@
 /**
- *  kvChild 0.1.2
+ *  kvChild 0.1.2a
  	
+    0.1.2a	update for ST's change of default map value handeling
     0.1.2	fixed init on setings changes
     0.1.1	fixed bug in zone temp
     0.1.0	added adjustable logging
@@ -60,7 +61,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vChild = "0.1.2"
+	state.vChild = "0.1.2a"
     parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", tempHandler)
     subscribe(vents, "pressure", getAdjustedPressure)
@@ -154,7 +155,7 @@ def main(){
                 	,required		: true
                 	,type			: "enum"
                     ,options		: maxVoptions()
-                    ,defaultValue	: ["100"]
+                    ,defaultValue	: "100"
                     ,submitOnChange	: soc
             	) 
                 }
@@ -165,7 +166,7 @@ def main(){
                 	,required		: true
                 	,type			: "enum"
                     ,options 		: zoneTempOptions()
-                    ,defaultValue	: ["0"]
+                    ,defaultValue	: "0"
                     ,submitOnChange	: soc
             	) 
 				input(
@@ -175,7 +176,7 @@ def main(){
                 	,required		: true
                 	,type			: "enum"
                     ,options 		: zoneTempOptions()
-                    ,defaultValue	: ["0"]
+                    ,defaultValue	: "0"
                     ,submitOnChange	: soc
             	)
             }
@@ -188,7 +189,7 @@ def main(){
                 	,type			: "enum"
                 	,options		: [["-1":"Do not close"],["0":"Immediately"],["60":"After 1 Minute"],["120":"After 2 Minutes"],["300":"After 5 Minutes"]]
                 	,submitOnChange	: false
-                   	,defaultValue	: ["-1"]
+                   	,defaultValue	: "-1"
             	)
                 
             	def zcsTitle = zoneControlSwitch ? "Optional zone disable switch: when on, zone is enabled, when off, zone is disabled " : "Optional zone disable switch"
@@ -264,7 +265,7 @@ def advanced(){
                 	,type			: "enum"
                		,options		: [["0":"None"],["10":"Lite"],["20":"Moderate"],["30":"Detailed"],["40":"Super nerdy"],["15":"Pressure only"]]
                 	,submitOnChange	: false
-                   	,defaultValue	: ["10"]
+                   	,defaultValue	: "10"
             	)                      
         }
     }
@@ -305,8 +306,8 @@ def zoneEvaluate(params){
     def zoneTemp = tempSensors.currentValue("temperature").toFloat()
     def coolOffset = settings.coolOffset.toInteger()
     def heatOffset = settings.heatOffset.toInteger()
-    def maxVo = (settings.maxVo ?: 100).toInteger()
-    def minVo = (settings.minVo ?: 0).toInteger()
+    def maxVo = settings.maxVo.toInteger()
+    def minVo = settings.minVo.toInteger()
     
     switch (msg){
     	case "stat" :
