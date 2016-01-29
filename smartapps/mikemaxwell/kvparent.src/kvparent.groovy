@@ -66,6 +66,8 @@ def initialize() {
     state.mainCSP = state.mainCSP ?: tStat.currentValue("coolingSetpoint").toFloat()
     state.mainHSP = state.mainHSP ?: tStat.currentValue("heatingSetpoint").toFloat()
     
+    checkNotify(null)
+    
   	/*
     state.runMaps = []
     state.runTimes = []
