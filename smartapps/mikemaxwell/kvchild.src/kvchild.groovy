@@ -1,6 +1,7 @@
 /**
- *  kvChild 0.1.1
+ *  kvChild 0.1.2
  	
+    0.1.2	fixed init on setings changes
     0.1.1	fixed bug in zone temp
     0.1.0	added adjustable logging
     		added pressure polling switch option
@@ -59,16 +60,17 @@ def updated() {
 }
 
 def initialize() {
-	state.vChild = "0.1.1"
+	state.vChild = "0.1.2"
     parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", tempHandler)
     subscribe(vents, "pressure", getAdjustedPressure)
     subscribe(vents, "level", levelHandler)
     subscribe(zoneControlSwitch,"switch",zoneDisableHandeler)
+    
+    zoneEvaluate(parent.notifyZone())
+    
+    /*
 	if (!state.mainState){ 
-    	//def data = parent.notifyZone()
-        //log.debug "init: ${data}"
-    	//zoneEvaluate(data)
         zoneEvaluate(parent.notifyZone())
     } else {
     	//normal tap through
@@ -83,9 +85,10 @@ def initialize() {
                 zoneEvaluate(data)
             }
         } else {
-			//nothing changes        
+			logger(30,"debug","initialize- mainState: ${state.mainState}, running: ${state.running}")       
         }
     } 
+    */
 }
 
 //dynamic page methods
@@ -177,7 +180,6 @@ def main(){
             	)
             }
             section("Zone options"){
-            
             	input(
             		name			: "ventCloseWait"
                 	,title			: "Close vents at cycle completion?"
@@ -308,8 +310,23 @@ def zoneEvaluate(params){
     
     switch (msg){
     	case "stat" :
-        		//[initRequest:true, mainState:heat, mainStateChange:false, mainMode:heat, mainModeChange:false, mainCSP:80.0, mainCSPChange:false, mainHSP:74.0, mainHSPChange:true, mainOn:true]
-        		//logger(30,"debug","zoneEvaluate- msg: ${msg}, data: ${data}")
+        		/*
+                [msg:"stat",
+                data:[
+                	initRequest:false,
+                    mainState:mainState,
+                    mainStateChange:mainStateChange,
+                    mainMode:mainMode,
+                    mainModeChange:mainModeChange,
+                    mainCSP:mainCSP,
+                    mainCSPChange:mainCSPChange,
+                    mainHSP:mainHSP,
+                    mainHSPChange:mainHSPChange,
+                    mainOn:mainOn,
+                    delay:delay
+                 ]]
+        		*/
+                //logger(30,"debug","zoneEvaluate- msg: ${msg}, data: ${data}")
                 //initial request for info during app install
                 if (data.initRequest){
                     evaluateVents = data.mainOn
@@ -330,8 +347,15 @@ def zoneEvaluate(params){
                     } else if (!data.mainOn){
                     	zoneDisablePending = false
                     	running = false
-						//check zone vent close options
-                        def closeOption = ventCloseWait.toInteger()
+                        
+                       	def asp = state.activeSetPoint
+                        def d = (zoneTemp - asp).toFloat()
+                        d = d.round(1)
+                        state.endReport = "\n\tsetpoint: ${tempStr(asp)}\n\tend temp: ${tempStr(zoneTemp)}\n\tvariance: ${tempStr(d)}\n\tvent levels: ${vents.currentValue("level")}%"        
+                    	logger(10,"info","Main HVAC has shut down.")                        
+                        
+						//check zone vent close options from zone and from parent
+                        def closeOption = ventCloseWait.toInteger() + data.delay
         				if (closeOption == 0){
                 			logger(10,"warn", "Vents closed via Close vents option")
         					setVents(0)
@@ -339,11 +363,6 @@ def zoneEvaluate(params){
                 			logger(10,"warn", "Vent closing is scheduled in ${closeOption} seconds")
         					runIn(closeOption,delayClose)
         				}
-                        def asp = state.activeSetPoint
-                        def d = (zoneTemp - asp).toFloat()
-                        d = d.round(1)
-                        state.endReport = "\n\tsetpoint: ${tempStr(asp)}\n\tend temp: ${tempStr(zoneTemp)}\n\tvariance: ${tempStr(d)}\n\tvent levels: ${vents.currentValue("level")}%"        
-                    	logger(10,"info","Main HVAC has shut down.")
      				}
                 } else {
                 	logger(30,"warn","zoneEvaluate- ${msg}, no matching events, data: ${data}")

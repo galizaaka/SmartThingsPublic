@@ -1,6 +1,8 @@
 /**
- *  kvParent 0.1.0
+ *  kvParent 0.1.2
  	
+    0.1.2	0.1.1 was a cruel and mean thing...
+    0.1.1	fixed delay notification and null init issues
     0.1.0	detected setback 
     		force vent vo option, one time on page change, sets all zone vents to the selected option
     0.0.8a	fixed initial notify delay bug
@@ -50,7 +52,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vParent = "0.1.0"
+	state.vParent = "0.1.2"
     //subscribe(tStat, "thermostatSetpoint", notifyZones) doesn't look like we need to use this
     subscribe(tStat, "thermostatMode", checkNotify)
     subscribe(tStat, "thermostatFanMode", checkNotify)
@@ -58,9 +60,11 @@ def initialize() {
     subscribe(tStat, "heatingSetpoint", checkNotify)
     subscribe(tStat, "coolingSetpoint", checkNotify)
 
-	
-    
-	//checkNotify(null)
+	//init state vars
+	state.mainState = state.mainState ?: getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
+    state.mainMode = state.mainMode ?: getNormalizedOS(tStat.currentValue("thermostatMode"))
+    state.mainCSP = state.mainCSP ?: tStat.currentValue("coolingSetpoint").toFloat()
+    state.mainHSP = state.mainHSP ?: tStat.currentValue("heatingSetpoint").toFloat()
     
   	/*
     state.runMaps = []
@@ -126,13 +130,13 @@ def main(){
             		) 
                     input(
             			name			: "fanRunOn"
-                		,title			: "Fan run on notification delay:"
+                		,title			: "Global system idle vent close delay:"
                 		,multiple		: false
                 		,required		: true
                 		,type			: "enum"
                 		,options		: [["0":"No delay"],["60":"1 Minute"],["120":"2 Minutes"],["180":"3 Minutes"],["240":"4 Minutes"],["300":"5 Minutes"]]
                 		,submitOnChange	: false
-                   		,defaultValue	: "120"
+                   		,defaultValue	: "0"
             		)             
             }
             if (installed){
@@ -286,117 +290,65 @@ def checkNotify(evt){
     //def msg = params.msg
     //def initRequest = evt == "zoneRequest"
     //logger(30,"warn","checkNotify zoneRequest- from a new Zone")
+	def tempStr = ''
+    def tempFloat = 0.0
+    def delay = settings.fanRunOn.toInteger()
 	
-	
-    def mainState = state.mainState
-    def mainStateChange = mainState != getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
+	tempStr = getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
+	def mainState = state.mainState
+    def mainStateChange = mainState != tempStr
+    mainState = tempStr
     logger(40,"info","checkNotify- mainState: ${mainState}, mainStateChange: ${mainStateChange}")
-    if (mainStateChange){
-    	mainState = getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
-        logger(30,"warn","checkNotify mainState- new: ${mainState}, old: ${state.mainState}")
-        state.mainState = mainState
-    }
     
+    tempStr = getNormalizedOS(tStat.currentValue("thermostatMode"))
     def mainMode = state.mainMode
-    def mainModeChange = mainMode != getNormalizedOS(tStat.currentValue("thermostatMode"))
+    def mainModeChange = mainMode != tempStr
+    mainMode = tempStr
     logger(40,"info","checkNotify- mainMode: ${mainMode}, mainModeChange: ${mainModeChange}")
-    if (mainModeChange){
-    	mainMode = getNormalizedOS(tStat.currentValue("thermostatMode"))
-        logger(30,"warn","checkNotify mainMode- new: ${mainMode}, old: ${state.mainMode}")
-        state.mainMode = mainMode
-    }
-    
+
+	tempFloat = tStat.currentValue("coolingSetpoint").toFloat()
     def mainCSP = state.mainCSP
-    def mainCSPChange = mainCSP != tStat.currentValue("coolingSetpoint").toFloat()
+    def mainCSPChange = mainCSP != tempFloat
+    mainCSP = tempFloat
     logger(40,"info","checkNotify- mainCSP: ${mainCSP}, mainCSPChange: ${mainCSPChange}")
-    if (mainCSPChange){
-    	mainCSP = tStat.currentValue("coolingSetpoint").toFloat()
-        logger(30,"warn","checkNotify mainCSP- new: ${mainCSP}, old: ${state.mainCSP}")
-        state.mainCSP = mainCSP
-    }   
-    
+
+	tempFloat = tStat.currentValue("heatingSetpoint").toFloat()
     def mainHSP = state.mainHSP
-    def mainHSPChange = mainHSP != tStat.currentValue("heatingSetpoint").toFloat()
+    def mainHSPChange = mainHSP != tempFloat
+    mainHSP = tempFloat
     logger(40,"info","checkNotify- mainHSP: ${mainHSP}, mainHSPChange: ${mainHSPChange}")
-    if (mainHSPChange){
-    	mainHSP = tStat.currentValue("heatingSetpoint").toFloat()
-        logger(30,"warn","checkNotify mainHSP- new: ${mainHSP}, old: ${state.mainHSP}")
-        state.mainHSP = mainHSP
-    }    
+    
+    def mainOn = mainState != "idle"
+    //always update state vars
+    state.mainState = mainState
+    state.mainMode = mainMode
+    state.mainCSP = mainCSP
+    state.mainHSP = mainHSP
+    
     
     if (mainStateChange || mainModeChange || mainCSPChange || mainHSPChange){
     	//[stat:[mainState:,mainMode:,mainCSP:,mainHSP:,mainOn:]
-        def mainOn = mainState != "idle"
-    	def dataSet = [msg:"stat",data:[initRequest:false,mainState:mainState,mainStateChange:mainStateChange,mainMode:mainMode,mainModeChange:mainModeChange,mainCSP:mainCSP,mainCSPChange:mainCSPChange,mainHSP:mainHSP,mainHSPChange:mainHSPChange,mainOn:mainOn]]
-    	logger(30,"debug","dataSet: ${dataSet}")
-        //logger(20,"debug","dataSet: ${dataSet}")
-        //push to children...
-        notifyZones(dataSet)
+        if (mainStateChange) logger(10,"info","Main HVAC state changed to: ${mainState}")
+        if (mainModeChange) logger(10,"info","Main HVAC mode changed to: ${mainMode}")
+        if (mainCSPChange) logger(10,"info","Main HVAC cooling setpoint changed to: ${mainCSP}")
+        if (mainHSPChange) logger(10,"info","Main HVAC heating setpoint changed to: ${mainHSP}")
         
+    	def dataSet = [msg:"stat",data:[initRequest:false,mainState:mainState,mainStateChange:mainStateChange,mainMode:mainMode,mainModeChange:mainModeChange,mainCSP:mainCSP,mainCSPChange:mainCSPChange,mainHSP:mainHSP,mainHSPChange:mainHSPChange,mainOn:mainOn,delay:delay]]
+    	logger(30,"debug","dataSet: ${dataSet}")
+		notifyZones(dataSet)
     }
     logger(40,"debug","checkNotify:exit- ")
-   
-	/*
-	mainState:idle
-	//old stuff
-	/*
-	//get current states
-    def csp = tStat.currentValue("coolingSetpoint").toFloat()
-    def hsp = tStat.currentValue("heatingSetpoint").toFloat()
-    def hvacState = getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
-    def hvacMode = getNormalizedOS(tStat.currentValue("thermostatMode"))
-    
-    def mainOn = hvacMode != "idle"
-    def delay = fanRunOn.toInteger()
-    
-    //get previous states
-    def previousHVACmap  = state.hvacMap ?: [mainCSP:csp,mainHSP:hsp,mainMode:hvacMode,mainOn:mainOn,spChange:true,modeChange:true,hvacSet:hvacSet]
-    def lastHSP = previousHVACmap.mainHSP.toFloat()
-    def lastCSP = previousHVACmap.mainCSP.toFloat()
-    def lastMode = previousHVACmap.mainMode
-    //def lastSpChange = previousHVACmap.spChange
-    //def lastModeChange = previousHVACmap.modeChange
-    def lastHvacSet = previousHVACmap.hvacSet
-    
-    //get state changes
-    def isSetback = false
-    
-    if (mainOn){
-    	isSetback = (hvacSet == "heating" && ((hsp + 1) < lastHSP)) || (hvacSet == "cooling" && ((csp + 1) > lastCSP))
-    }
-    
-    def isSetPointChange = ((hsp != lastHSP) || (csp != lastCSP))
-    
-    def isModeChange = (evt == null || hvacMode != lastMode)
-    
-   
-    log.info "checkNotify-"
-    log.trace "--hvacMode: ${hvacMode}, isChange: ${isModeChange}"
-    log.trace "--hvacSet: ${hvacSet}"
-    log.trace "--mainOn: ${mainOn}"
-    log.trace "--isSetback: ${isSetback}"
-    log.trace "--isModeChange: ${isModeChange}"
-    log.trace "--cooling setpoint: ${csp}" 
-    log.trace "--heating set point: ${hsp}"
-    log.trace "--evel- HSP: ${hsp}, hsp + 1: ${(hsp + 1)}, lastHSP: ${lastHSP}  is? :${((hsp + 1) < lastHSP)}"
-    
-	//skip set point changes if we're idle and if the setback is 2 degrees or greater
-    if (mainOn && !isSetback){
-  		notifyZones()
-    } else if (!mainOn && isModeChange){
-      	if (delay != 0){
-			log.info "notify zones, scheduled in ${delay} seconds."        	
-            runIn(delay,notifyZones)
-       } else notifyZones()
-    }
-    //set states
-    state.hvacMap = [mainCSP:csp,mainHSP:hsp,mainMode:hvacMode,mainOn:mainOn,spChange:isSetPointChange,modeChange:isModeChange,hvacSet:hvacSet]
-    */
 }
 
+
 def notifyZone(){
-	def dataSet = [msg:"stat",data:[initRequest:true,mainState:state.mainState,mainMode:state.mainMode,mainCSP:state.mainCSP,mainHSP:state.mainHSP,mainOn:(state.mainMode != "idle")]]
-    //state.mainMode != "idle"
+	//initial data request for new zone
+    def mainState = getNormalizedOS(tStat.currentValue("thermostatOperatingState"))
+    def mainMode = getNormalizedOS(tStat.currentValue("thermostatMode"))
+    def mainCSP = tStat.currentValue("coolingSetpoint").toFloat()
+    def mainHSP = tStat.currentValue("heatingSetpoint").toFloat()
+    def mainOn = mainState != "idle"
+	def dataSet = [msg:"stat",data:[initRequest:true,mainState:mainState,mainMode:mainMode,mainCSP:mainCSP,mainHSP:mainHSP,mainOn:mainOn]]
     logger(40,"debug","notifyZone:enter- map:${dataSet}")
     return dataSet
 }
