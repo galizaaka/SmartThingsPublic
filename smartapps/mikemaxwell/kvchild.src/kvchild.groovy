@@ -305,8 +305,8 @@ def zoneEvaluate(params){
     def zoneTemp = tempSensors.currentValue("temperature").toFloat()
     def coolOffset = settings.coolOffset.toInteger()
     def heatOffset = settings.heatOffset.toInteger()
-    def maxVo = settings.maxVo.toInteger()
-    def minVo = settings.minVo.toInteger()
+    def maxVo = (settings.maxVo ?: 100).toInteger()
+    def minVo = (settings.minVo ?: 0).toInteger()
     
     switch (msg){
     	case "stat" :
