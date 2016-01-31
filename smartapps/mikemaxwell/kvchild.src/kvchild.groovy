@@ -1,6 +1,9 @@
 /**
- *  kvChild 0.1.2a
- 	
+ *  kvChild 0.1.3
+ 			
+ 	0.1.3	fixed bug where zoneSetpoint wouldnt stick when applied while the zone was running
+    		reversed order of zone temp setbacks
+            updated zone vent close options functionality
     0.1.2a	update for ST's change of default map value handeling
     0.1.2	fixed init on setings changes
     0.1.1	fixed bug in zone temp
@@ -39,9 +42,9 @@ definition(
     description: "child application for 'Keen Vent Manager', do not install directly.",
     category: "My Apps",
     parent: "MikeMaxwell:kvParent",
-    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
-    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png"
+    iconUrl: "https://raw.githubusercontent.com/MikeMaxwell/smartthings/master/keen-app-icon.png",
+    iconX2Url: "https://raw.githubusercontent.com/MikeMaxwell/smartthings/master/keen-app-icon.png",
+
 )
 
 preferences {
@@ -61,7 +64,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vChild = "0.1.2a"
+	state.vChild = "0.1.3"
     parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", tempHandler)
     subscribe(vents, "pressure", getAdjustedPressure)
@@ -69,27 +72,6 @@ def initialize() {
     subscribe(zoneControlSwitch,"switch",zoneDisableHandeler)
     
     zoneEvaluate(parent.notifyZone())
-    
-    /*
-	if (!state.mainState){ 
-        zoneEvaluate(parent.notifyZone())
-    } else {
-    	//normal tap through
-        if (zoneControlSwitch) state.zoneDisabled = zoneControlSwitch.currentValue("switch") == "off"
-        else {
-        	state.zoneDisabled = false
-            state.zoneDisablePending = false
-        }
-        if ((state.maxVo !=  maxVo.toInteger()) || (state.minVo !=  minVo.toInteger()) || (state.coolOffset != coolOffset.toInteger()) || (state.heatOffset != heatOffset.toInteger())){
-        	if (state.mainOn){
-            	def data = [msg:"self", data:[settingsChanged:true]]
-                zoneEvaluate(data)
-            }
-        } else {
-			logger(30,"debug","initialize- mainState: ${state.mainState}, running: ${state.running}")       
-        }
-    } 
-    */
 }
 
 //dynamic page methods
@@ -101,7 +83,7 @@ def main(){
         ,install	: true
         ,uninstall	: installed
         ){
-		     section("Zone Devices"){
+		     section("Devices"){
              	label(
                    	title		: "Name the zone"
                     ,required	: true
@@ -137,7 +119,7 @@ def main(){
             	)   
                 */
             }
-            section("Zone Settings"){
+            section("Settings"){
 				input(
             		name			: "minVo"
                 	,title			: "Minimum vent opening"
@@ -180,15 +162,22 @@ def main(){
                     ,submitOnChange	: soc
             	)
             }
-            section("Zone options"){
+            section("Options"){
+                def froTitle = 'Close vents at cycle completion is '
+                if (!ventCloseWait || ventCloseWait == "-1"){
+                	froTitle = froTitle + "[off]"
+                } else {
+                	froTitle = froTitle + "[on]"
+                }
             	input(
             		name			: "ventCloseWait"
-                	,title			: "Close vents at cycle completion?"
+                	//,title			: "Close vents at cycle completion?"
+                    ,title			: froTitle
                 	,multiple		: false
                 	,required		: true
                 	,type			: "enum"
-                	,options		: [["-1":"Do not close"],["0":"Immediately"],["60":"After 1 Minute"],["120":"After 2 Minutes"],["300":"After 5 Minutes"]]
-                	,submitOnChange	: false
+                	,options		: [["-1":"Do not close"],["0":"Immediate"],["60":"After 1 Minute"],["120":"After 2 Minutes"],["300":"After 5 Minutes"]]
+                	,submitOnChange	: true
                    	,defaultValue	: "-1"
             	)
                 
@@ -203,8 +192,9 @@ def main(){
             	)  
 				
                 //advanced hrefs...
+                def afTitle = "Advanced features: " + (vPolling ?  "Vent polling is [on]" : "Vent polling is [off]") + ', Loglevel is ' + getLogLevel(settings.logLevel)
 				href( "advanced"
-					,title			: "Advanced features..."
+                    ,title			: afTitle
 					,description	: ""
 					,state			: null
 				)
@@ -263,7 +253,7 @@ def advanced(){
                 	,multiple		: false
                 	,required		: true
                 	,type			: "enum"
-               		,options		: [["0":"None"],["10":"Lite"],["20":"Moderate"],["30":"Detailed"],["40":"Super nerdy"],["15":"Pressure only"]]
+                    ,options		: getLogLevels()
                 	,submitOnChange	: false
                    	,defaultValue	: "10"
             	)                      
@@ -289,23 +279,23 @@ def zoneEvaluate(params){
     def evaluateVents = false
     def msg = params.msg
     def data = params.data
-    
+    //main states
     def mainState = state.mainState
     def mainMode = state.mainMode 
 	def mainHSP = state.mainHSP 
 	def mainCSP = state.mainCSP 
 	def mainOn = state.mainOn 
-    def zoneCSP = state.zoneCSP
-    def zoneHSP = state.zoneHSP
-    
+ 	//sone states    
     def zoneDisablePending = state.zoneDisablePending ?: false
 	def zoneDisabled = state.zoneDisabled ?: false
     def running
     
-    //always fetch these
+    //always fetch these since the zone ownes them
     def zoneTemp = tempSensors.currentValue("temperature").toFloat()
     def coolOffset = settings.coolOffset.toInteger()
     def heatOffset = settings.heatOffset.toInteger()
+    def zoneCSP = mainCSP + coolOffset
+    def zoneHSP = mainHSP + heatOffset
     def maxVo = settings.maxVo.toInteger()
     def minVo = settings.minVo.toInteger()
     
@@ -328,7 +318,7 @@ def zoneEvaluate(params){
                  ]]
         		*/
                 //logger(30,"debug","zoneEvaluate- msg: ${msg}, data: ${data}")
-                //initial request for info during app install
+                //initial request for info during app install and zone update
                 if (data.initRequest){
                     evaluateVents = data.mainOn
                     //log.info "zoneEvaluate- init zone request, evaluateVents: ${evaluateVents}"
@@ -340,8 +330,12 @@ def zoneEvaluate(params){
                 } else if (data.mainStateChange){
                 	//system start up
                 	if (data.mainOn && !zoneDisabled){
+                    	//fire up temp/pressure snapshot here
                         evaluateVents = true
-                        if (vPolling) pollVents() 
+                        if (vPolling){
+                        	getInitialPressure()
+                        	runIn(60,pollVents)
+                        }
                         logger(30,"info","zoneEvaluate- system start up, evaluate: ${evaluateVents}, vent polling started: ${vPolling}")
                         logger(10,"info","Main HVAC is on and ${data.mainState}ing")
                     //system shut down
@@ -356,14 +350,21 @@ def zoneEvaluate(params){
                     	logger(10,"info","Main HVAC has shut down.")                        
                         
 						//check zone vent close options from zone and from parent
-                        def closeOption = ventCloseWait.toInteger() + data.delay
-        				if (closeOption == 0){
-                			logger(10,"warn", "Vents closed via Close vents option")
-        					setVents(0)
-        				} else if (closeOption > 0){
-                			logger(10,"warn", "Vent closing is scheduled in ${closeOption} seconds")
-        					runIn(closeOption,delayClose)
-        				}
+                        def delaySeconds = 0
+                        def zoneCloseOption = ventCloseWait.toInteger()
+                        if (zoneCloseOption != -1){
+                        	delaySeconds = zoneCloseOption
+                        	if (data.delay != -1){
+                            	delaySeconds = delaySeconds + data.delay
+                            } 
+       						if (delaySeconds == 0){
+                				logger(10,"warn", "Vents closed via close vents option")
+        						setVents(0)
+        					} else {
+                				logger(10,"warn", "Vent closing is scheduled in ${delaySeconds} seconds")
+        						runIn(delaySeconds,delayClose)
+        					}                            
+                        } 
      				}
                 } else {
                 	logger(30,"warn","zoneEvaluate- ${msg}, no matching events, data: ${data}")
@@ -410,14 +411,13 @@ def zoneEvaluate(params){
         		logger(30,"debug","zoneEvaluate- msg: ${msg}, data: ${data}")
                 
         	break
+        //no longer used???...
         case "self" :
         		//[msg:self, data:[settingsChanged:true|false]
         		//logger(30,"debug","zoneEvaluate- msg: ${msg}, data: ${data}")
                 if (data.settingsChanged){
                 	//[msg:"self", data:[maxVo:maxVo.toInteger(),minVo:minVo.toInteger(),coolOffset:coolOffset.toInteger(),heatOffset:heatOffset.toInteger()]]
                 	logger(30,"debug","zoneEvaluate- zone settingsChanged, data: ${data}")
-                    zoneCSP = mainCSP + coolOffset
-                	zoneHSP = mainHSP + heatOffset
                 	evaluateVents = true
                 }
         	break
@@ -470,15 +470,16 @@ def zoneEvaluate(params){
     state.heatOffset = heatOffset
 
     logger(40,"debug","zoneEvaluate:exit- ")
-    
-
 }
 
 //event handlers
 def levelHandler(evt){
 	logger(40,"debug","levelHandler:enter- ")
 	logger(30,"debug","levelHandler- evt name: ${evt.name}, value: ${evt.value}, rdLen: ${evt.description == ""}")
+    
+    // should change over to the below at some point...
     //evt.description == "" is true for app initiated, and false for device results...
+    
     def ventData = state."${evt.deviceId}"
     def oldVO = (state.voRequest ?: -1).toInteger()
 	def resetVent = false
@@ -499,15 +500,9 @@ def levelHandler(evt){
        			//log.warn "External VL request!!!"
                 logger(30,"warn","levelHandler- External VL request!!!")
                 resetVent = true
-           		//if (atomicState.running == true) zoneEvaluate()
        		}
    		}
         state."${evt.deviceId}" = ventData
-        
-        //if (resetVent) zoneEvaluate("ventReset- vOld: ${oldVO}, vNew: ${v}")
-        //[msg:self, data:[evt:"updated"]]
-        
-		//log.trace "levelHandler result: ${atomicState."${evt.deviceId}"}"    
     }
     logger(40,"debug","levelHandler:exit- ")
 }
@@ -533,7 +528,7 @@ def getAdjustedPressure(evt){
     	logger(30,"info","getAdjustedPressure- evt name: ${evt.name}, value: ${evt.value}")
     	def vid = evt.deviceId
         def vent = vents.find{it.id == vid}
- 
+        
      	def stdT = 273.15 //standard temperature, kelvin
     	def stdP = 101325.0 //standard pressure, pascal
         def stdD = 1.2041 //standard air density, kg/m3
@@ -544,15 +539,48 @@ def getAdjustedPressure(evt){
        	def pAdjusted = ((P1 * stdT)/T1) //pascal
         def pVelocity = Math.sqrt((2 * P1)/stdD).round(0).toInteger()
         def pVelocityAdjusted = Math.sqrt((2 * pAdjusted)/stdD).round(0).toInteger()
-        //Math.sqrt(delegate)
-        logger(15,"info","getAdjustedPressure- [${vent.displayName}] adjusted~ pressure: ${pAdjusted.round(0).toInteger()} Pa, velocity: ${pVelocityAdjusted} m/s, actuals~ temp: ${T1} K, pressure: ${P1.round(0).toInteger()} Pa, velocity: ${pVelocity} m/s, vo: ${vo}%, mainOn: ${state.mainOn}")
-            
-        	//def pOffset = (pAdjusted - stdP).round(0)
-            //def k = (P1/T1).round(0)
-            //logger(-1,"info","getAdjustedPressure- [${vent.displayName}] adjusted~ pressure: ${pAdjusted}Pa, offset: ${pOffset}Pa, k: ${k}, actuals~ temp: ${T1}K, pressure: ${P1}Pa, vo: ${vo}%, mainOn: ${mainOn}")
-            
+        
+        def roAdj
+        def roAct
+        def vAdj
+        def vAct
+        if (state."${vid}"){
+        	roAdj = (state."${vid}".pInitAdj ?: pAdjusted) - pAdjusted
+            roAct = (state."${vid}".pInitAct ?: P1) - P1
+            vAdj = (state."${vid}".vInitAdj ?: pVelocityAdjusted) - pVelocityAdjusted
+            vAct = (state."${vid}".vInitAct ?: pVelocity) - pVelocity
+        }
+        logger(15,"debug","getAdjustedPressure- [${vent.displayName}] monitor~ roAdj: ${roAdj.round(1)}, roAct: ${roAct.round(1)}, vAdj: ${vAdj}, vAct: ${vAct}, adjusted~ p: ${pAdjusted.round(0).toInteger()} Pa, v: ${pVelocityAdjusted}, actuals~ p: ${P1.round(0).toInteger()} Pa, v: ${pVelocity}, vo: ${vo}%, mainOn: ${state.mainOn}")
+        //logger(15,"debug","getAdjustedPressure- [${vent.displayName}] monitor~ roAdj: ${roAdj.round(1)}, roAct: ${roAct.round(1)}  adjusted~ pressure: ${pAdjusted.round(0).toInteger()} Pa, pressure: ${P1.round(0).toInteger()} Pa, vo: ${vo}%, mainOn: ${state.mainOn}")
     }
     logger(40,"debug","getAdjustedPressure:exit- ")
+}
+
+def getInitialPressure(){
+	//logger(15,"info","Getting startup pressures...")
+    def stdT = 273.15 //standard temperature, kelvin
+   	def stdP = 101325.0 //standard pressure, pascal
+   	def stdD = 1.2041 //standard air density, kg/m3
+
+	vents.each{ vent ->
+    	def vo = vent.currentValue("level").toFloat().round(0).toInteger()
+   		def P1 = vent.currentValue("pressure").toFloat()
+        def T = vent.currentValue("temperature").toFloat()
+		def T1 = tempToK(T)
+       	def pAdjusted = ((P1 * stdT)/T1) //pascal
+        def pVelocity = Math.sqrt((2 * P1)/stdD).round(0).toInteger()
+        def pVelocityAdjusted = Math.sqrt((2 * pAdjusted)/stdD).round(0).toInteger()
+        //logger(15,"warn","getInitialPressure- [${vent.displayName}] adjusted~ pressure: ${pAdjusted.round(0).toInteger()} Pa, velocity: ${pVelocityAdjusted} m/s, actuals~ temp: ${T1} K, pressure: ${P1.round(0).toInteger()} Pa, velocity: ${pVelocity} m/s, vo: ${vo}%, mainOn: ${state.mainOn}")
+        logger(15,"warn","getInitialPressure- [${vent.displayName}] start~ roAdj: ${roAdj.round(1)}, roAct: ${roAct.round(1)}, vAdj: ${vAdj}, vAct: ${vAct}, adjusted~ p: ${pAdjusted.round(0).toInteger()} Pa, actuals~ p: ${P1.round(0).toInteger()} Pa, vo: ${vo}%")
+        if (state."${vent.id}" != null){
+        	state."${vent.id}".pInitAdj = pAdjusted.round(0).toInteger()
+            state."${vent.id}".pInitAct = P1.round(0).toInteger()
+            state."${vent.id}".vInitAdj = pVelocityAdjusted
+            state."${vent.id}".vInitAct = pVelocity
+        } else {
+        	state."${vent.id}" = [pInitAdj:pAdjusted,pInitAct:P1,vInitAdj:pVelocityAdjusted,vInitAct:pVelocity,voRequest:"",voActual:""]
+        }
+    }
 }
 
 //misc utility methods
@@ -588,25 +616,24 @@ def setVents(newVo){
 	//state.voRequest = newVo
     def result = ""
     def changeRequired = false
+    
 	vents.each{ vent ->
     	//log.info "setVents data [${vent.displayName}] ${atomicState."${vent.id}"}"
-        def ventData = state."${vent.id}"
         def previousRequest
         def previousActual
-        if (ventData != null){
-         	previousRequest = ventData.voRequest
-        	previousActual = ventData.voActual
+        if (state."${vent.id}" != null){
+         	previousRequest = state."${vent.id}".voRequest
+        	previousActual = state."${vent.id}".voActual
             //log.info "change required test: pr: ${previousRequest}, newVo: ${newVo}"
             changeRequired = previousRequest.toInteger() != newVo.toInteger()
-            ventData.voRequest = "${newVo}"
+            state."${vent.id}".voRequest = "${newVo}"
             //log.debug "setVents- device state map updated here: , VD: ${ventData}, new vo: ${newVo}"
         } else {
-           	ventData =  [voRequest:"${newVo}",voActual:"${newVo}"]
+           	state."${vent.id}" =  [pInitAdj:"",pInitAct:"",vInitAdj:"",vInitAct:"",voRequest:"${newVo}",voActual:"${newVo}"] 
             changeRequired = true
             previousRequest = newVo
             //log.debug "setVents- device state map built here: ${ventData}"
         }
-        state."${vent.id}" = ventData
         //log.info "setVents- [${vent.displayName}], changeRequired: ${changeRequired}, new vo: ${newVo}, previous requested vo: ${previousRequest}, previous actual vo: ${previousActual}"
         logger(30,"info","setVents- [${vent.displayName}], changeRequired: ${changeRequired}, new vo: ${newVo}, previous requested vo: ${previousRequest}, previous actual vo: ${previousActual}")
         if (changeRequired){
@@ -619,29 +646,9 @@ def setVents(newVo){
     logger(40,"debug","setVents:exit- ")
 }
 
-def getStandardPressure(){
-	log.debug "geting initial pressure readings"
-	//pressure is a string
-    //temp is an int 
-    def T2 = 273.15 //standard kelvin
-    def stdP = 101325.0 //standard pressure
-    vents.each{ vent ->
-    	def vo = vent.currentValue("level")
-    	def P1 = vent.currentValue("pressure").toFloat()
-        def T = vent.currentValue("temperature").toFloat()
-		def T1 = tempToK(T)
-        //((P*K)/stdK) - stdP = vOffset
-        def pAdjusted = ((P1 * T2)/T1).round(0)
-        def pOffset = (pAdjusted - stdP).round(0)
-        def k = (P1/T1).round(0)
-        //state."${vent.id}".pOffset = vOffset 
-        log.info "init[${vent.displayName}] adjusted~ pressure: ${pAdjusted}, offset: ${pOffset}, k: ${k}, actuals~ temp: ${T1}, pressure: ${P1}, vo: ${vo}"
-	}
-}
-
 def pollVents(){
 	if (vPolling){
-		logger(15,"warn","pollVents- polling vents")
+		logger(20,"warn","pollVents- polling vents")
    		vents.getTemperature()
 		vents.getPressure()
    		if (state.mainOn == null) return
@@ -694,17 +701,30 @@ def maxVoptions(){
     return opts
 }
 
+def getLogLevels(){
+	return [["0":"None"],["10":"Lite"],["20":"Moderate"],["30":"Detailed"],["40":"Super nerdy"],["15":"Pressure only"]]
+}
+
+def getLogLevel(val){
+	def logLvl = 'Lite'
+    def l = getLogLevels()
+    if (val){
+    	logLvl = l.find{ it."${val}"}
+        logLvl = logLvl."${val}".value
+    }
+    return '[' + logLvl + ']'
+}
+
 def zoneTempOptions(){
 	def zo
     if (!state.tempScale) state.tempScale = location.temperatureScale
 	if (state.tempScale == "F"){
-    	zo = [["-5":"-5°F"],["-4":"-4°F"],["-3":"-3°F"],["-2":"-2°F"],["-1":"-1°F"],["0":"0°F"],["1":"1°F"],["2":"2°F"],["3":"3°F"],["4":"4°F"],["5":"5°F"]]
+    	zo = [["5":"5°F"],["4":"4°F"],["3":"3°F"],["2":"2°F"],["1":"1°F"],["0":"0°F"],["-1":"-1°F"],["-2":"-2°F"],["-3":"-3°F"],["-4":"-4°F"],["-5":"-5°F"]]
     } else {
-    	zo = [["-5":"-5°C"],["-4":"-4°C"],["-3":"-3°C"],["-2":"-2°C"],["-1":"-1°C"],["0":"0°C"],["1":"1°C"],["2":"2°C"],["3":"3°C"],["4":"4°C"],["5":"5°C"]]
+    	zo = [["5":"5°C"],["4":"4°C"],["3":"3°C"],["2":"2°C"],["1":"1°C"],["0":"0°C"],["-1":"-1°C"],["-2":"-2°C"],["-3":"-3°C"],["-4":"-4°C"],["-5":"-5°C"]]
     }
 	return zo
 }
-
 
 //legacy data logging and statistics
 //spent too much time on this to delete it yet.
@@ -773,11 +793,6 @@ def getVentReport(){
         def T = vent.currentState("temperature")
         def B = vent.currentState("battery")
         def set = [P:[D:P.date.format("yyyy-MM-dd HH:mm:ss") ,V:P.value],L:[D:L.date.format("yyyy-MM-dd HH:mm:ss") ,V:L.value],T:[D:T.date.format("yyyy-MM-dd HH:mm:ss") ,V:T.value]]
-        //log.debug "vent:${vent}"
-        //vent.properties.each{ p ->
-        //	log.info "property:${p}"
-        //}
-        //def set = [T:[D:T.date ,V:T.value]]
         report.add((vent.displayName):set)
     }
     return report.toString() ?: "nothing new..."

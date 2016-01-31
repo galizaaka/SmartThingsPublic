@@ -1,6 +1,6 @@
 /**
- *  kvParent 0.1.2a
- 	
+ *  kvParent 0.1.3
+ 	0.1.3	vent close global options changed
     0.1.2a	update for todays change in todays map input change
     0.1.2	0.1.1 was a cruel and mean thing...
     0.1.1	fixed delay notification and null init issues
@@ -30,8 +30,8 @@ definition(
     author		: "Mike Maxwell",
     description	: "parent application for 'Keen Vent Manager'",
     category	: "My Apps",
-    iconUrl		: "https://s3.amazonaws.com/smartapp-icons/Developers/whole-house-fan.png",
-    iconX2Url	: "https://s3.amazonaws.com/smartapp-icons/Developers/whole-house-fan@2x.png"
+    iconUrl		: "https://raw.githubusercontent.com/MikeMaxwell/smartthings/master/keen-app-icon.png",
+    iconX2Url	: "https://raw.githubusercontent.com/MikeMaxwell/smartthings/master/keen-app-icon.png"
 )
 
 preferences {
@@ -53,7 +53,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vParent = "0.1.2a"
+	state.vParent = "0.1.3"
     //subscribe(tStat, "thermostatSetpoint", notifyZones) doesn't look like we need to use this
     subscribe(tStat, "thermostatMode", checkNotify)
     subscribe(tStat, "thermostatFanMode", checkNotify)
@@ -91,7 +91,7 @@ def main(){
 	def installed = app.installationState == "COMPLETE"
 	return dynamicPage(
     	name		: "main"
-        ,title		: "Zone Configuration"
+        ,title		: "Zones"
         ,install	: true
         ,uninstall	: installed
         ){	if (installed){
@@ -114,7 +114,7 @@ def main(){
 					)
                 }                
              }
-		     section("Main Configuration"){
+		     section("Configuration"){
                    	input(
                         name			: "tStat"
                         ,title			: "Main Thermostat"
@@ -131,15 +131,21 @@ def main(){
                 		,type			: "capability.temperatureMeasurement"
                         ,submitOnChange	: false
             		) 
+                    def froTitle = 'Close vents at cycle completion is '
+                    if (!fanRunOn || fanRunOn == "-1"){
+                    	froTitle = froTitle + "[off]"
+                    } else {
+                    	froTitle = froTitle + "[on]"
+                    }
                     input(
             			name			: "fanRunOn"
-                		,title			: "Global system idle vent close delay:"
+                        ,title			: froTitle
                 		,multiple		: false
                 		,required		: true
                 		,type			: "enum"
-                		,options		: [["0":"No delay"],["60":"1 Minute"],["120":"2 Minutes"],["180":"3 Minutes"],["240":"4 Minutes"],["300":"5 Minutes"]]
-                		,submitOnChange	: false
-                   		,defaultValue	: "0"
+                		,options		: [["-1":"Use zone settings"],["0":"Immediate"],["60":"After 1 Minute"],["120":"After 2 Minutes"],["180":"After 3 Minutes"],["240":"After 4 Minutes"],["300":"After 5 Minutes"]]
+                        ,submitOnChange	: true
+                   		,defaultValue	: "-1"
             		)             
             }
             if (installed){
@@ -191,7 +197,7 @@ def reporting(){
 	def report
 	return dynamicPage(
     	name		: "reporting"
-        ,title		: "Available zone reports"
+        ,title		: "Zone reports"
         ,install	: false
         ,uninstall	: false
         ){
@@ -240,15 +246,16 @@ def getReport(rptName){
     //[stat:[mainState:heat|cool|auto,mainMode:heat|cool|idle,mainCSP:,mainHSP:,mainOn:true|false]]
     
     def reports = ""
-    //def report
-    //getZoneConfig()
-    //getEndReport
 	if (rptName == "Current state"){
     	cMethod = "getZoneState"
         def t = tempSensors.currentValue("temperature")
         reports = "Main system:\n\tstate: ${state.mainState}\n\tmode: ${state.mainMode}\n\tcurrent temp: ${tempStr(t)}\n\tcooling set point: ${tempStr(state.mainCSP)}\n\theating set point: ${tempStr(state.mainHSP)}\n\n"
     }
-    if (rptName == "Configuration") cMethod = "getZoneConfig"
+    if (rptName == "Configuration"){
+    	cMethod = "getZoneConfig"
+       	def t = tempSensors.currentValue("temperature")
+        reports = "Main system:\n\tstate: ${state.mainState}\n\tmode: ${state.mainMode}\n\tcurrent temp: ${tempStr(t)}\n\tcooling set point: ${tempStr(state.mainCSP)}\n\theating set point: ${tempStr(state.mainHSP)}\n\n"
+    }
     if (rptName == "Last results") cMethod = "getEndReport"
     def sorted = childApps.sort{it.label}
     sorted.each{ child ->
@@ -263,8 +270,6 @@ def getReport(rptName){
 }
 
 def checkNotify(evt){
-	//request from child
-	
 
 	//logger(10|20|30|40,"error"|"warn"|"info"|"debug"|"trace",text)
     logger(40,"debug","checkNotify:enter- ")
@@ -325,7 +330,6 @@ def checkNotify(evt){
     }
     logger(40,"debug","checkNotify:exit- ")
 }
-
 
 def notifyZone(){
 	//initial data request for new zone
