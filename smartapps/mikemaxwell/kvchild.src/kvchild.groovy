@@ -1,11 +1,12 @@
 /**
- *  kvChild 0.1.3
+ *  kvChild 0.1.4
  			
- 	0.1.3	fixed bug where zoneSetpoint wouldnt stick when applied while the zone was running
+    0.1.4	fixed null race condition when adding new zone.        
+ 	0.1.3	fixed bug where zoneSetpoint wouldn't stick when applied while the zone was running
     		reversed order of zone temp setbacks
             updated zone vent close options functionality
-    0.1.2a	update for ST's change of default map value handeling
-    0.1.2	fixed init on setings changes
+    0.1.2a	update for ST's change of default map value handling
+    0.1.2	fixed init on settings changes
     0.1.1	fixed bug in zone temp
     0.1.0	added adjustable logging
     		added pressure polling switch option
@@ -64,7 +65,7 @@ def updated() {
 }
 
 def initialize() {
-	state.vChild = "0.1.3"
+	state.vChild = "0.1.4"
     parent.updateVer(state.vChild)
     subscribe(tempSensors, "temperature", tempHandler)
     subscribe(vents, "pressure", getAdjustedPressure)
@@ -264,6 +265,7 @@ def advanced(){
 //zone control methods
 def zoneEvaluate(params){
 	logger(30,"debug","zoneEvaluate:enter-- parameters: ${params}")
+    //log.warn "params:${params}"
 	//param data structures
     /*
     [msg:stat, data:[mainState:heat, mainStateChange:false, mainMode:heat, mainModeChange:false, mainCSP:80.0, mainCSPChange:false, mainHSP:74.0, mainHSPChange:true, mainOn:true]]
@@ -280,24 +282,31 @@ def zoneEvaluate(params){
     def msg = params.msg
     def data = params.data
     //main states
-    def mainState = state.mainState
-    def mainMode = state.mainMode 
-	def mainHSP = state.mainHSP 
-	def mainCSP = state.mainCSP 
-	def mainOn = state.mainOn 
- 	//sone states    
-    def zoneDisablePending = state.zoneDisablePending ?: false
-	def zoneDisabled = state.zoneDisabled ?: false
-    def running
+    def mainStateLocal = state.mainState ?: ""
+    def mainModeLocal = state.mainMode ?: ""
+	def mainHSPLocal = state.mainHSP  ?: 0
+	def mainCSPLocal = state.mainCSP  ?: 0
+	def mainOnLocal = state.mainOn  ?: ""
+    if (mainStateLocal == null || mainModeLocal == null || mainHSPLocal == null || mainCSPLocal == null || mainOnLocal == null){
+    	log.warn "one or more main state variables are null, mainState:${mainStateLocal} mainMode:${mainModeLocal} mainHSP:${mainHSPLocal} mainCSP:${mainCSPLocal} mainOn:${mainOnLocal}"
+    }
+ 	//zone states    
+    def zoneDisablePendingLocal = state.zoneDisablePending ?: false
+	def zoneDisabledLocal = state.zoneDisabled ?: false
+    def runningLocal
     
     //always fetch these since the zone ownes them
-    def zoneTemp = tempSensors.currentValue("temperature").toFloat()
-    def coolOffset = settings.coolOffset.toInteger()
-    def heatOffset = settings.heatOffset.toInteger()
-    def zoneCSP = mainCSP + coolOffset
-    def zoneHSP = mainHSP + heatOffset
-    def maxVo = settings.maxVo.toInteger()
-    def minVo = settings.minVo.toInteger()
+    def zoneTempLocal = tempSensors.currentValue("temperature").toFloat()
+    def coolOffsetLocal = settings.coolOffset.toInteger()
+    def heatOffsetLocal = settings.heatOffset.toInteger()
+    def maxVoLocal = settings.maxVo.toInteger()
+    def minVoLocal = settings.minVo.toInteger()
+   	if (coolOffsetLocal == null || heatOffsetLocal == null || maxVoLocal == null || minVoLocal == null){
+    	log.warn "one or more local inputs are null, coolOffset:${coolOffsetLocal} heatOffset:${heatOffsetLocal} maxVo:${maxVoLocal} minVo:${minVoLocal}"
+    }    
+    def zoneCSPLocal = mainCSPLocal + coolOffsetLocal
+    def zoneHSPLocal = mainHSPLocal + heatOffsetLocal
+
     
     switch (msg){
     	case "stat" :
@@ -323,13 +332,13 @@ def zoneEvaluate(params){
                     evaluateVents = data.mainOn
                     //log.info "zoneEvaluate- init zone request, evaluateVents: ${evaluateVents}"
                 //set point changes, ignore setbacks
-                } else if (data.mainOn && (mainHSP < data.mainHSP || mainCSP > data.mainCSP)) {
+                } else if (data.mainOn && (mainHSPLocal < data.mainHSP || mainCSPLocal > data.mainCSP)) {
                     evaluateVents = true
                     logger(30,"info","zoneEvaluate- set point changes, evaluate: ${true}")
                 //system state changed
                 } else if (data.mainStateChange){
                 	//system start up
-                	if (data.mainOn && !zoneDisabled){
+                	if (data.mainOn && !zoneDisabledLocal){
                     	//fire up temp/pressure snapshot here
                         evaluateVents = true
                         if (vPolling){
@@ -340,18 +349,18 @@ def zoneEvaluate(params){
                         logger(10,"info","Main HVAC is on and ${data.mainState}ing")
                     //system shut down
                     } else if (!data.mainOn){
-                    	zoneDisablePending = false
-                    	running = false
+                    	zoneDisablePendingLocal = false
+                    	runningLocal = false
                         
                        	def asp = state.activeSetPoint
-                        def d = (zoneTemp - asp).toFloat()
+                        def d = (zoneTempLocal - asp).toFloat()
                         d = d.round(1)
-                        state.endReport = "\n\tsetpoint: ${tempStr(asp)}\n\tend temp: ${tempStr(zoneTemp)}\n\tvariance: ${tempStr(d)}\n\tvent levels: ${vents.currentValue("level")}%"        
+                        state.endReport = "\n\tsetpoint: ${tempStr(asp)}\n\tend temp: ${tempStr(zoneTempLocal)}\n\tvariance: ${tempStr(d)}\n\tvent levels: ${vents.currentValue("level")}%"        
                     	logger(10,"info","Main HVAC has shut down.")                        
                         
 						//check zone vent close options from zone and from parent
                         def delaySeconds = 0
-                        def zoneCloseOption = ventCloseWait.toInteger()
+                        def zoneCloseOption = settings.ventCloseWait.toInteger()
                         if (zoneCloseOption != -1){
                         	delaySeconds = zoneCloseOption
                         	if (data.delay != -1){
@@ -370,20 +379,20 @@ def zoneEvaluate(params){
                 	logger(30,"warn","zoneEvaluate- ${msg}, no matching events, data: ${data}")
                 }
                 //always update data
-                mainState = data.mainState
-                mainMode = data.mainMode
-                mainHSP = data.mainHSP
-                mainCSP = data.mainCSP
-                mainOn = data.mainOn
-                zoneCSP = mainCSP + coolOffset
-                zoneHSP = mainHSP + heatOffset
+                mainStateLocal = data.mainState
+                mainModeLocal = data.mainMode
+                mainHSPLocal = data.mainHSP
+                mainCSPLocal = data.mainCSP
+                mainOnLocal = data.mainOn
+                zoneCSPLocal = mainCSPLocal + coolOffsetLocal
+                zoneHSPLocal = mainHSPLocal + heatOffsetLocal
         	break
         case "temp" :
         		//data:["tempChange"]
         		//logger(30,"debug","zoneEvaluate- msg: ${msg}, data: ${data}")
                 //process changes if zone is not disabled
-                if (!zoneDisabled || zoneDisablePending){
-                	logger(30,"debug","zoneEvaluate- zone temperature changed, zoneTemp: ${zoneTemp}")
+                if (!zoneDisabledLocal || zoneDisablePendingLocal){
+                	logger(30,"debug","zoneEvaluate- zone temperature changed, zoneTemp: ${zoneTempLocal}")
                 	evaluateVents = true
                 } else {
                 	logger(30,"warn","zoneEvaluate- ${msg}, no matching events")
@@ -396,13 +405,13 @@ def zoneEvaluate(params){
         case "zoneSwitch" :
         		//[msg:"zoneSwitch", data:[zoneIsEnabled:true|false]]
                 //fire up zone since it was activated
-                if (mainOn && data.zoneIsEnabled){
+                if (mainOnLocal && data.zoneIsEnabled){
                 	logger(30,"debug","zoneEvaluate- zone was enabled, data: ${data}")
                 	evaluateVents = true
                 //zone is active, zone switch went inactive
-                } else if (mainOn && !data.zoneIsEnabled) {
-                	zoneDisabled = true
-                    zoneDisablePending = true
+                } else if (mainOnLocal && !data.zoneIsEnabled) {
+                	zoneDisabledLocal = true
+                    zoneDisablePendingLocal = true
                 } else {
                 	logger(30,"warn","zoneEvaluate- ${msg}, no matching events, data: ${data}")
                 }
@@ -426,48 +435,48 @@ def zoneEvaluate(params){
     
     if (evaluateVents){
     	def slResult = ""
-       	if (mainState == "heat"){
-        	state.activeSetPoint = zoneHSP
-       		if (zoneTemp >= zoneHSP){
-           		slResult = setVents(minVo)
-             	logger(10,"info", "Zone temp is ${tempStr(zoneTemp)}, heating setpoint of ${tempStr(zoneHSP)} is met${slResult}")
-				running = false
+       	if (mainStateLocal == "heat"){
+        	state.activeSetPoint = zoneHSPLocal
+       		if (zoneTempLocal >= zoneHSPLocal){
+           		slResult = setVents(minVoLocal)
+             	logger(10,"info", "Zone temp is ${tempStr(zoneTempLocal)}, heating setpoint of ${tempStr(zoneHSPLocal)} is met${slResult}")
+				runningLocal = false
           	} else {
-				slResult = setVents(maxVo)
-				logger(10,"info", "Zone temp is ${tempStr(zoneTemp)}, heating setpoint of ${tempStr(zoneHSP)} is not met${slResult}")
-				running = true
+				slResult = setVents(maxVoLocal)
+				logger(10,"info", "Zone temp is ${tempStr(zoneTempLocal)}, heating setpoint of ${tempStr(zoneHSPLocal)} is not met${slResult}")
+				runningLocal = true
            	}            	
-        } else if (mainState == "cool"){
-        	state.activeSetPoint = zoneCSP
-       		if (zoneTemp <= zoneCSP){
-				slResult = setVents(minVo)
-                logger(10,"info", "Zone temp is ${tempStr(zoneTemp)}, cooling setpoint of ${tempStr(zoneCSP)} is met${slResult}")
-                running = false
+        } else if (mainStateLocal == "cool"){
+        	state.activeSetPoint = zoneCSPLocal
+       		if (zoneTempLocal <= zoneCSPLocal){
+				slResult = setVents(minVoLocal)
+                logger(10,"info", "Zone temp is ${tempStr(zoneTempLocal)}, cooling setpoint of ${tempStr(zoneCSPLocal)} is met${slResult}")
+                runningLocal = false
        		} else {
-				slResult = setVents(maxVo)
-                logger(10,"info", "Zone temp is ${tempStr(zoneTemp)}, cooling setpoint of ${tempStr(zoneCSP)} is not met${slResult}")
-                running = true
+				slResult = setVents(maxVoLocal)
+                logger(10,"info", "Zone temp is ${tempStr(zoneTempLocal)}, cooling setpoint of ${tempStr(zoneCSPLocal)} is not met${slResult}")
+                runningLocal = true
            	}                        
       	} else {
-            logger(10,"error","zoneEvaluate- evaluateVents, mainState: ${mainState}, zoneTemp: ${zoneTemp}, zoneHSP: ${zoneHSP}, zoneCSP: ${zoneCSP}")
+            logger(10,"error","zoneEvaluate- evaluateVents, mainState: ${mainStateLocal}, zoneTemp: ${zoneTempLocal}, zoneHSP: ${zoneHSPLocal}, zoneCSP: ${zoneCSPLocal}")
        	}
     }
     //write state
-    state.mainState = mainState
-    state.mainMode = mainMode
-	state.mainHSP = mainHSP
-	state.mainCSP = mainCSP
-	state.mainOn = mainOn
-    state.zoneCSP = zoneCSP
-    state.zoneHSP = zoneHSP
-    state.zoneTemp = zoneTemp
-    state.zoneDisablePending = zoneDisablePending
-	state.zoneDisabled = zoneDisabled
-    state.running = running
-   	state.maxVo = maxVo
-    state.minVo = minVo
-    state.coolOffset = coolOffset
-    state.heatOffset = heatOffset
+    state.mainState = mainStateLocal
+    state.mainMode = mainModeLocal
+	state.mainHSP = mainHSPLocal
+	state.mainCSP = mainCSPLocal
+	state.mainOn = mainOnLocal
+    state.zoneCSP = zoneCSPLocal
+    state.zoneHSP = zoneHSPLocal
+    state.zoneTemp = zoneTempLocal
+    state.zoneDisablePending = zoneDisablePendingLocal
+	state.zoneDisabled = zoneDisabledLocal
+    state.running = runningLocal
+   	//state.maxVo = maxVoLocal
+    //state.minVo = minVoLocal
+    //state.coolOffset = coolOffsetLocal
+    //state.heatOffset = heatOffsetLocal
 
     logger(40,"debug","zoneEvaluate:exit- ")
 }
@@ -570,15 +579,16 @@ def getInitialPressure(){
        	def pAdjusted = ((P1 * stdT)/T1) //pascal
         def pVelocity = Math.sqrt((2 * P1)/stdD).round(0).toInteger()
         def pVelocityAdjusted = Math.sqrt((2 * pAdjusted)/stdD).round(0).toInteger()
+        
         //logger(15,"warn","getInitialPressure- [${vent.displayName}] adjusted~ pressure: ${pAdjusted.round(0).toInteger()} Pa, velocity: ${pVelocityAdjusted} m/s, actuals~ temp: ${T1} K, pressure: ${P1.round(0).toInteger()} Pa, velocity: ${pVelocity} m/s, vo: ${vo}%, mainOn: ${state.mainOn}")
-        logger(15,"warn","getInitialPressure- [${vent.displayName}] start~ roAdj: ${roAdj.round(1)}, roAct: ${roAct.round(1)}, vAdj: ${vAdj}, vAct: ${vAct}, adjusted~ p: ${pAdjusted.round(0).toInteger()} Pa, actuals~ p: ${P1.round(0).toInteger()} Pa, vo: ${vo}%")
+        logger(15,"warn","getInitialPressure- [${vent.displayName}] start~ roAdj: ${pAdjusted.round(0).toInteger()}, roAct: ${P1.round(0).toInteger()}, vAdj: ${pVelocityAdjusted}, vAct: ${pVelocity}, adjusted~ p: ${pAdjusted.round(0).toInteger()} Pa, actuals~ p: ${P1.round(0).toInteger()} Pa, vo: ${vo}%")
         if (state."${vent.id}" != null){
         	state."${vent.id}".pInitAdj = pAdjusted.round(0).toInteger()
             state."${vent.id}".pInitAct = P1.round(0).toInteger()
             state."${vent.id}".vInitAdj = pVelocityAdjusted
             state."${vent.id}".vInitAct = pVelocity
         } else {
-        	state."${vent.id}" = [pInitAdj:pAdjusted,pInitAct:P1,vInitAdj:pVelocityAdjusted,vInitAct:pVelocity,voRequest:"",voActual:""]
+        	state."${vent.id}" = [pInitAdj:pAdjusted.round(0).toInteger(),pInitAct:P1.round(0).toInteger(),vInitAdj:pVelocityAdjusted,vInitAct:pVelocity,voRequest:"",voActual:""]
         }
     }
 }
