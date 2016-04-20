@@ -55,7 +55,6 @@ metadata {
 
 	}
     preferences {
-    	//try changing enums to this form:	options: ["january":1, "february":2, "march":3]
        	input name: "param80", type: "enum", title: "State change notice:", description: "Type", required: true, options:["Off","Hail","Report"]
         input name: "param120", type: "enum", title: "Set trigger mode:", description: "Switch type", required: true, options:["Momentary","Toggle","Three Way"]
         input name: "blinker", type: "enum", title: "Set blinker mode:", description: "Blinker type", required: false, options:["Blink","Flasher","Strobe","5minute"]
@@ -73,19 +72,18 @@ metadata {
 	}
 
 	// tile definitions
-	tiles {
-		standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
-			state "on", label:'${name}', action:"switch.off", backgroundColor:"#79b821"
-			state "off", label:'${name}', action:"switch.on", backgroundColor:"#ffffff"
-		}
-		standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat") {
-			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
-		}
-		standardTile("blink", "device.alarm", inactiveLabel: false, decoration: "flat") {
+	tiles (scale:2) {
+    	multiAttributeTile(name:"switch", type: "generic", width: 6, height: 4, canChangeIcon: true){
+			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
+				attributeState "on", label: '${name}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#53a7c0"
+				attributeState "off", label: '${name}', action: "switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
+			}
+        }
+		standardTile("blink", "device.alarm", inactiveLabel: false, height:1, width:2, decoration: "flat") {
 			state "default", label:"", action:"alarm.strobe", icon:"st.secondary.strobe", backgroundColor:"#ffffff"
 		}
 		main(["switch"])
-        details(["switch","blink","refresh"])
+        details(["switch","blink"])
 	}
  }
 

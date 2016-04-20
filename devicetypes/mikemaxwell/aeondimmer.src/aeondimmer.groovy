@@ -82,29 +82,28 @@ metadata {
 	}
 
 	// tile definitions
-tiles {
-		standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
-			state "on", label:'${name}', action:"switch.off", backgroundColor:"#79b821"
-			state "off", label:'${name}', action:"switch.on", backgroundColor:"#ffffff"
+tiles (scale: 2) {
+		multiAttributeTile(name:"dimmer", type: "lighting", width: 6, height: 4, canChangeIcon: true){
+			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
+				attributeState "on", label: '${name}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#53a7c0"
+				attributeState "off", label: '${name}', action: "switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
+			}
+			tileAttribute ("device.level", key: "SLIDER_CONTROL") {
+				attributeState "level", action: "switch level.setLevel"
+			}
 		}
-		standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat") {
-			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
+		standardTile("blink", "device.alarm", inactiveLabel: false, height:1, width:2, decoration: "flat") {
+            state "default", label:"", action:"alarm.strobe", backgroundColor: "#ffffff", icon:"st.secondary.strobe" 
 		}
-		standardTile("blink", "device.alarm", inactiveLabel: false, decoration: "flat") {
-            state "default", label:"", action:"alarm.strobe", backgroundColor: "#53a7c0", icon:"st.secondary.strobe" 
-		}
-		valueTile("lValue", "device.level", inactiveLabel: true, height:1, width:1, decoration: "flat") {
-            state "levelValue", label:'${currentValue}%', unit:""
+        standardTile("lUp", "device.switchLevel", inactiveLabel: false, height:1, width:2, decoration: "flat", canChangeIcon: false) {
+            state "default", label: "Level up" , action: "levelUp", icon:"st.illuminance.illuminance.bright"
         }
-        standardTile("lUp", "device.switchLevel", inactiveLabel: false,decoration: "flat", canChangeIcon: false) {
-            state "default", action:"levelUp", icon:"st.illuminance.illuminance.bright"
-        }
-        standardTile("lDown", "device.switchLevel", inactiveLabel: false,decoration: "flat", canChangeIcon: false) {
-            state "default", action:"levelDown", icon:"st.illuminance.illuminance.light"
+        standardTile("lDown", "device.switchLevel", inactiveLabel: false, height:1, width:2, decoration: "flat", canChangeIcon: false) {
+            state "default", label: "Level down" , action:"levelDown", icon:"st.illuminance.illuminance.light"
         }
 
-		main(["switch"])
-        details(["switch", "lUp", "lDown","blink","lValue","refresh"])
+		main(["dimmer"])
+        details(["dimmer", "lDown","lUp","blink"])
 	}
  }
 
@@ -199,6 +198,7 @@ def levelDown(){
 }
 
 def setLevel(value) {
+	//log.debug "setLevel:${value}"
 	//Don't request a config report when advanced reporting is enabled
 	if (settings.param80 in ["Hail","Report"]) zwave.basicV1.basicSet(value: value).format()
     else delayBetween ([zwave.basicV1.basicSet(value: value).format(), zwave.basicV1.basicGet().format()], 5000)
