@@ -9,12 +9,9 @@
 	definition (name: "Simulated Presence Sensor", namespace: "infofiend", author: "smartthings") {
 		capability "Presence Sensor"
 		capability "Sensor"
-		capability "Actuator"
 
-		command "arrived"
-		command "departed"
-        command "away"
-        command "present"
+		command "away"
+		command "present"
 	}
 
 	simulator {
@@ -24,8 +21,8 @@
 
 	tiles {
 		standardTile("presence", "device.presence", width: 2, height: 2, canChangeBackground: true, inactiveLabel: false, canChangeIcon: true) {
-			state("present", label:'${name}', icon:"st.presence.tile.mobile-present", action:"departed", backgroundColor:"#53a7c0")
-			state("not present", label:'${name}', icon:"st.presence.tile.mobile-not-present", action:"arrived", backgroundColor:"#CCCC00")
+			state("present", label:'${name}', icon:"st.presence.tile.mobile-present", action:"away", backgroundColor:"#53a7c0")
+			state("not present", label:'${name}', icon:"st.presence.tile.mobile-not-present", action:"present", backgroundColor:"#ffffff")
 		}
 		main "presence"
 		details "presence"
@@ -64,9 +61,8 @@ private String parseName(String description) {
 
 private String parseValue(String description) {
 	switch(description) {
-		case "presence: 1": return "arrived"
-		case "presence: 0": return "departed"
-        
+		case "presence: 1": return "present"
+		case "presence: 0": return "not present"
 		default: return description
 	}
 }
@@ -74,9 +70,7 @@ private String parseValue(String description) {
 private parseDescriptionText(String linkText, String value, String description) {
 	switch(value) {
 		case "present": return "$linkText has arrived"
-		case "not present": return "$linkText has departed"
-        case "arrived": return "$linkText has arrived"
-		case "departed": return "$linkText has departed"
+		case "not present": return "$linkText has left"
 		default: return value
 	}
 }
@@ -84,31 +78,15 @@ private parseDescriptionText(String linkText, String value, String description) 
 private getState(String value) {
 	switch(value) {
 		case "present": return "arrived"
-		case "not present": return "departed"
+		case "not present": return "left"
 		default: return value
 	}
 }
 
-
-
-// handle commands
-def arrived() {
-	log.trace "Executing 'arrived'"
-	sendEvent(name: "presence", value: "present")
-}
-
-
-def departed() {
-	log.trace "Executing 'Departed'"
-	sendEvent(name: "presence", value: "not present")
-}
-
 def away() {
-	log.trace "Executing 'Away'"
 	sendEvent(name: 'presence', value: 'not present')
 }
 
 def present() {
-	log.trace "Executing 'Presence'"
 	sendEvent(name: 'presence', value: 'present')
 }
